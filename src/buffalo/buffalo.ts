@@ -195,6 +195,8 @@ class Buffalo {
     }
 
     public readListUInt8(options: Options): Value {
+        console.log('readUint8List',options, this.position);
+
         const value = [];
         for (let i = 0; i < options.length; i++) {
             value.push(this.readUInt8());

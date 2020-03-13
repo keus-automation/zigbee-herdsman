@@ -19,6 +19,8 @@ interface RoutingTable {
     table: {destinationAddress: number; status: string; nextHop: number}[];
 }
 
+const KEUS_DEVICE_ENDPOINT = 8;
+
 class Device extends Entity {
     private readonly ID: number;
     private _applicationVersion?: number;
@@ -355,6 +357,33 @@ class Device extends Entity {
         }
         if (!gotNodeDescriptor) {
             throw new Error(`Interview failed because can not get node descriptor ('${this.ieeeAddr}')`);
+        }
+
+        // this is keus specific manufacturer id, interview will be slighty modified for keus based devices
+        if (this._manufacturerID == 0xAAAA) {
+                try {
+                    let simpleDescriptor = await Entity.adapter.simpleDescriptor(this.networkAddress, KEUS_DEVICE_ENDPOINT);
+                    let endpoint = Endpoint.create(
+                        KEUS_DEVICE_ENDPOINT,
+                        simpleDescriptor.profileID,
+                        simpleDescriptor.deviceID,
+                        simpleDescriptor.inputClusters,
+                        simpleDescriptor.outputClusters,
+                        this.networkAddress,
+                        this.ieeeAddr
+                    );
+
+                    this._endpoints.push(endpoint);
+                    debug(`Keus Interview - got simple descriptor for endpoint '${endpoint.ID}' device '${this.ieeeAddr}'`);
+
+                    this.save();
+
+                    return;
+                } catch (error) {
+                    debug(`Error with Keus device pairing, Simple Descriptor Request Failed`);
+
+                    return;
+                }
         }
 
         // e.g. Xiaomi Aqara Opple devices fail to respond to the first active endpoints request, therefore try 2 times

@@ -57,6 +57,13 @@ const Endpoints = [
         appnuminclusters: 1,
         appinclusterlist: [Zcl.Utils.getCluster('genOta').ID]
     },
+    {
+        ...EndpointDefaults,
+        endpoint: 14,
+        appprofid: 0x01,
+        appnuminclusters: 1,
+        appinclusterlist: [Zcl.Utils.getCluster('keus').ID]
+    },
 ];
 
 async function validateItem(

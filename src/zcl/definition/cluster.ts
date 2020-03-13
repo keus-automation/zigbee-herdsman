@@ -3685,6 +3685,52 @@ const Cluster: {
         commands: {},
         commandsResponse: {}
     },
+    keus: {
+        ID: 0x0B21,
+        attributes: {},
+        commands: {
+            appMessage: {
+                ID: 1,
+                parameters: [
+                    {name: 'clusterId', type: DataType.uint8},
+                    {name: 'commandId', type: DataType.uint8},
+                    {name: 'dataLen', type: DataType.uint8},
+                    {name: 'data', type: BuffaloZclDataType.LIST_UINT8}
+                ]
+            },
+            appReportMessage: {
+                ID: 2,
+                parameters: [
+                    {name: 'clusterId', type: DataType.uint8},
+                    {name: 'commandId', type: DataType.uint8},
+                    {name: 'dataLen', type: DataType.uint8},
+                    {name: 'data', type: BuffaloZclDataType.LIST_UINT8}
+                ]
+            }
+        },
+        commandsResponse: {
+            appMessageRsp: {
+                ID: 1,
+                parameters: [
+                    {name: 'clusterId', type: DataType.uint8},
+                    {name: 'commandId', type: DataType.uint8},
+                    {name: 'status', type: DataType.uint8},
+                    {name: 'dataLen', type: DataType.uint8},
+                    {name: 'data', type: BuffaloZclDataType.LIST_UINT8}
+                ]
+            },
+            appReportMessageRsp: {
+                ID: 2,
+                parameters: [
+                    {name: 'clusterId', type: DataType.uint8},
+                    {name: 'commandId', type: DataType.uint8},
+                    {name: 'status', type: DataType.uint8},
+                    {name: 'dataLen', type: DataType.uint8},
+                    {name: 'data', type: BuffaloZclDataType.LIST_UINT8}
+                ]
+            }
+        }
+    }
 };
 
 export default Cluster;

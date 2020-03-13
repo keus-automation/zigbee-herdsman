@@ -50,6 +50,7 @@ class Endpoint extends Entity {
     public inputClusters: number[];
     public outputClusters: number[];
     public profileID?: number;
+    public deviceVersion?: number;
     public readonly ID: number;
     public readonly clusters: Clusters;
     private readonly deviceIeeeAddress: string;
@@ -81,6 +82,7 @@ class Endpoint extends Entity {
         this.ID = ID;
         this.profileID = profileID;
         this.deviceID = deviceID;
+        this.deviceVersion = undefined;
         this.inputClusters = inputClusters;
         this.outputClusters = outputClusters;
         this.deviceNetworkAddress = deviceNetworkAddress;

@@ -4,4 +4,5 @@ export default {
     Stelpro: 0x1185,
     Ubisys: 0x10f2,
     LegrandNetatmo: 0x1021,
+    Keus: 0xAAAA
 };

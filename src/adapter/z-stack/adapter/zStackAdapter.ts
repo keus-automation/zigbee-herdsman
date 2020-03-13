@@ -222,8 +222,9 @@ class ZStackAdapter extends Adapter {
                 profileID: descriptor.payload.profileid,
                 endpointID: descriptor.payload.endpoint,
                 deviceID: descriptor.payload.deviceid,
+                deviceVersion: descriptor.payload.deviceversion,
                 inputClusters: descriptor.payload.inclusterlist,
-                outputClusters: descriptor.payload.outclusterlist,
+                outputClusters: descriptor.payload.outclusterlist
             };
         }, networkAddress);
     }
@@ -258,7 +259,7 @@ class ZStackAdapter extends Adapter {
 
         try {
             await this.dataRequest(
-                networkAddress, endpoint, 1, zclFrame.Cluster.ID, Constants.AF.DEFAULT_RADIUS, zclFrame.toBuffer(),
+                networkAddress, endpoint, 14, zclFrame.Cluster.ID, Constants.AF.DEFAULT_RADIUS, zclFrame.toBuffer(),
                 timeout - 1000, 5
             );
         } catch (error) {
@@ -516,6 +517,7 @@ class ZStackAdapter extends Adapter {
                         this.waitress.resolve(payload);
                         this.emit(Events.Events.zclData, payload);
                     } catch (error) {
+                        debug(`Error while parsing ${error}`);
                         const payload: Events.RawDataPayload = {
                             clusterID: object.payload.clusterid,
                             data: object.payload.data,

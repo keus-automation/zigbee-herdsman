@@ -158,6 +158,13 @@ class Controller extends events.EventEmitter {
         return this.touchlink.factoryReset();
     }
 
+    public async permitJoinTimed(duration: number, device?: Device): Promise<void> {
+        if (duration && !this.getPermitJoin()) {
+            debug.log('Permit joining');
+            await this.adapter.permitJoin(duration, !device ? null : device.networkAddress);
+        }
+    }
+
     public async permitJoin(permit: boolean, device?: Device): Promise<void> {
         if (permit && !this.getPermitJoin()) {
             debug.log('Permit joining');
@@ -369,6 +376,11 @@ class Controller extends events.EventEmitter {
             );
             device.networkAddress = payload.networkAddress;
             device.save();
+
+            if (device.manufacturerID && device.manufacturerID == 0xAAAA) {
+                device.updateLastSeen();
+                return;
+            }
         }
 
         device.updateLastSeen();
