@@ -64,7 +64,8 @@ const CommandsLookup: {[s: string]: MessagePayloadType} = {
     'getData': 'commandGetData',
     'getWeeklyScheduleRsp': 'commandGetWeeklyScheduleRsp',
     'queryNextImageRequest': 'commandQueryNextImageRequest',
-    'appReportMessage': 'commandAppReportMessage'
+    'appMsg': 'commandAppMsg',
+    'appMsgRsp': 'commandAppMsgRsp'
 };
 
 type MessagePayloadType =
@@ -79,7 +80,7 @@ type MessagePayloadType =
     'commandRecall' | 'commandArm' | 'commandPanic' | 'commandEmergency' | 'commandColorLoopSet' |
     'commandOperationEventNotification' | 'commandStatusChangeNotification' | 'commandEnhancedMoveToHueAndSaturation' |
     'commandUpOpen' | 'commandDownClose' | 'commandMoveToLevel' | 'commandMoveColorTemp' | 'commandGetData' |
-    'commandGetWeeklyScheduleRsp' | 'commandQueryNextImageRequest' | 'commandAppReportMessage';
+    'commandGetWeeklyScheduleRsp' | 'commandQueryNextImageRequest' | 'commandAppMsg' | 'commandAppMsgRsp';
 
 interface MessagePayload {
     type: MessagePayloadType;

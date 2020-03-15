@@ -373,6 +373,8 @@ class Device extends Entity {
                         this.ieeeAddr
                     );
 
+                    endpoint.deviceVersion = simpleDescriptor.deviceVersion;
+
                     this._endpoints.push(endpoint);
                     debug(`Keus Interview - got simple descriptor for endpoint '${endpoint.ID}' device '${this.ieeeAddr}'`);
 
