@@ -464,6 +464,7 @@ class DeconzAdapter extends Adapter {
                 profileID: buf.readUInt16LE(6),
                 endpointID: buf.readUInt8(5),
                 deviceID: buf.readUInt16LE(8),
+                deviceVersion: 1,
                 inputClusters: inClusters,
                 outputClusters: outClusters
             }
