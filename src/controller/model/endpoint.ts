@@ -415,7 +415,7 @@ class Endpoint extends Entity {
     }
 
     public async command(
-        clusterKey: number | string, commandKey: number | string, payload: KeyValue, options?: Options,
+        clusterKey: number | string, commandKey: number | string, payload: KeyValue, options?: Options, sourceEndpoint?: number
     ): Promise<void | KeyValue> {
         const cluster = Zcl.Utils.getCluster(clusterKey);
         const command = cluster.getCommand(commandKey);
@@ -433,7 +433,7 @@ class Endpoint extends Entity {
 
         try {
             const result = await Entity.adapter.sendZclFrameToEndpoint(
-                this.deviceNetworkAddress, this.ID, frame, options.timeout,
+                this.deviceNetworkAddress, this.ID, frame, options.timeout, sourceEndpoint
             );
 
             if (result) {

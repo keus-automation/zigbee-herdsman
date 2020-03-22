@@ -230,17 +230,18 @@ class ZStackAdapter extends Adapter {
     }
 
     public async sendZclFrameToEndpoint(
-        networkAddress: number, endpoint: number, zclFrame: ZclFrame, timeout: number
+        networkAddress: number, endpoint: number, zclFrame: ZclFrame, timeout: number, sourceEndpoint?: number
     ): Promise<Events.ZclDataPayload> {
         return this.queue.execute<Events.ZclDataPayload>(async () => {
             return this.sendZclFrameToEndpointInternal(
-                networkAddress, endpoint, zclFrame, timeout, true
+                networkAddress, endpoint, zclFrame, timeout, true, sourceEndpoint
             );
         }, networkAddress);
     }
 
     private async sendZclFrameToEndpointInternal(
         networkAddress: number, endpoint: number, zclFrame: ZclFrame, timeout: number, firstAttempt: boolean,
+        sourceEndpoint?: number
     ): Promise<Events.ZclDataPayload> {
         let response = null;
         const command = zclFrame.getCommand();
@@ -259,8 +260,8 @@ class ZStackAdapter extends Adapter {
 
         try {
             await this.dataRequest(
-                networkAddress, endpoint, 14, zclFrame.Cluster.ID, Constants.AF.DEFAULT_RADIUS, zclFrame.toBuffer(),
-                timeout - 1000, 5
+                networkAddress, endpoint, sourceEndpoint ? sourceEndpoint : 1, zclFrame.Cluster.ID, Constants.AF.DEFAULT_RADIUS,
+                zclFrame.toBuffer(), timeout - 1000, 5
             );
         } catch (error) {
             if (response) {

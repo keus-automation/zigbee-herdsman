@@ -3691,6 +3691,7 @@ const Cluster: {
         commands: {
             appMsg: {
                 ID: 1,
+                response: 1,
                 parameters: [
                     {name: 'clusterId', type: DataType.uint8},
                     {name: 'commandId', type: DataType.uint8},
