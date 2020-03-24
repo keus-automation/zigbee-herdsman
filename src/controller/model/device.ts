@@ -415,31 +415,31 @@ class Device extends Entity {
 
         // this is keus specific manufacturer id, interview will be slighty modified for keus based devices
         if (this._manufacturerID == 0xAAAA) {
-                try {
-                    let simpleDescriptor = await Entity.adapter.simpleDescriptor(this.networkAddress, KEUS_DEVICE_ENDPOINT);
-                    let endpoint = Endpoint.create(
-                        KEUS_DEVICE_ENDPOINT,
-                        simpleDescriptor.profileID,
-                        simpleDescriptor.deviceID,
-                        simpleDescriptor.inputClusters,
-                        simpleDescriptor.outputClusters,
-                        this.networkAddress,
-                        this.ieeeAddr
-                    );
+            try {
+                let simpleDescriptor = await Entity.adapter.simpleDescriptor(this.networkAddress, KEUS_DEVICE_ENDPOINT);
+                let endpoint = Endpoint.create(
+                    KEUS_DEVICE_ENDPOINT,
+                    simpleDescriptor.profileID,
+                    simpleDescriptor.deviceID,
+                    simpleDescriptor.inputClusters,
+                    simpleDescriptor.outputClusters,
+                    this.networkAddress,
+                    this.ieeeAddr
+                );
 
-                    endpoint.deviceVersion = simpleDescriptor.deviceVersion;
+                endpoint.deviceVersion = simpleDescriptor.deviceVersion;
 
-                    this._endpoints.push(endpoint);
-                    debug(`Keus Interview - got simple descriptor for endpoint '${endpoint.ID}' device '${this.ieeeAddr}'`);
+                this._endpoints.push(endpoint);
+                debug.log(`Keus Interview - got simple descriptor for endpoint '${endpoint.ID}' device '${this.ieeeAddr}'`);
 
-                    this.save();
+                this.save();
 
-                    return;
-                } catch (error) {
-                    debug(`Error with Keus device pairing, Simple Descriptor Request Failed`);
+                return;
+            } catch (error) {
+                debug.log(`Error with Keus device pairing, Simple Descriptor Request Failed`);
 
-                    return;
-                }
+                return;
+            }
         }
 
         // e.g. Xiaomi Aqara Opple devices fail to respond to the first active endpoints request, therefore try 2 times
