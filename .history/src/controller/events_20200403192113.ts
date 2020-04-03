@@ -81,8 +81,11 @@ type MessagePayloadType =
     'commandRecall' | 'commandArm' | 'commandPanic' | 'commandEmergency' | 'commandColorLoopSet' |
     'commandOperationEventNotification' | 'commandStatusChangeNotification' | 'commandEnhancedMoveToHueAndSaturation' |
     'commandUpOpen' | 'commandDownClose' | 'commandMoveToLevel' | 'commandMoveColorTemp' | 'commandGetData' |
-    'commandSetDataResponse' | 'commandGetWeeklyScheduleRsp' | 'commandQueryNextImageRequest' |
-    'commandAppMsg' | 'commandAppMsgRsp';
+<<<<<<< HEAD
+    'commandGetWeeklyScheduleRsp' | 'commandQueryNextImageRequest' | 'commandAppMsg' | 'commandAppMsgRsp';
+=======
+    'commandSetDataResponse' | 'commandGetWeeklyScheduleRsp' | 'commandQueryNextImageRequest';
+>>>>>>> 15eba725291ce8648d6543b086580220b51ca1a7
 
 interface MessagePayload {
     type: MessagePayloadType;
