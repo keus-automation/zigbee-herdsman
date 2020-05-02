@@ -48,6 +48,7 @@ class Device extends Entity {
     private _stackVersion?: number;
     private _type?: DeviceType;
     private _zclVersion?: number;
+    private _keusDevice?: boolean;
 
     // Getters/setters
     get ieeeAddr(): string {return this._ieeeAddr;}
@@ -85,6 +86,8 @@ class Device extends Entity {
     set stackVersion(stackVersion) {this._stackVersion = stackVersion;}
     get zclVersion(): number {return this._zclVersion;}
     set zclVersion(zclVersion) {this._zclVersion = zclVersion;}
+    get keusDevice(): boolean {return this._keusDevice;}
+    set keusDevice(keusDevice) {this._keusDevice = keusDevice};
 
     private meta: KeyValue;
 
@@ -437,6 +440,7 @@ class Device extends Entity {
                 endpoint.deviceVersion = simpleDescriptor.deviceVersion;
 
                 this._endpoints.push(endpoint);
+                this._keusDevice = true;
                 debug.log(`Keus Interview - got simple descriptor for endpoint '${endpoint.ID}' device '${this.ieeeAddr}'`);
 
                 this.save();
@@ -447,6 +451,8 @@ class Device extends Entity {
 
                 return;
             }
+        } else {
+            this._keusDevice = false;
         }
 
         // e.g. Xiaomi Aqara Opple devices fail to respond to the first active endpoints request, therefore try 2 times
