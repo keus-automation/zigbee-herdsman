@@ -1,13 +1,13 @@
 import events from 'events';
 import Database from './database';
-import {TsType as AdapterTsType, Adapter, Events as AdapterEvents} from '../adapter';
-import {Entity, Device} from './model';
-import {ZclFrameConverter} from './helpers';
+import { TsType as AdapterTsType, Adapter, Events as AdapterEvents } from '../adapter';
+import { Entity, Device } from './model';
+import { ZclFrameConverter } from './helpers';
 import * as Events from './events';
-import {KeyValue, DeviceType, GreenPowerEvents, GreenPowerDeviceJoinedPayload} from './tstype';
+import { KeyValue, DeviceType, GreenPowerEvents, GreenPowerDeviceJoinedPayload } from './tstype';
 import Debug from "debug";
 import fs from 'fs';
-import {Utils as ZclUtils, FrameControl} from '../zcl';
+import { Utils as ZclUtils, FrameControl } from '../zcl';
 import Touchlink from './touchlink';
 import GreenPower from './greenPower';
 
@@ -324,7 +324,7 @@ class Controller extends events.EventEmitter {
             device.save();
         }
 
-        const data: Events.DeviceAnnouncePayload = {device};
+        const data: Events.DeviceAnnouncePayload = { device };
         this.emit(Events.Events.deviceAnnounce, data);
     }
 
@@ -337,7 +337,7 @@ class Controller extends events.EventEmitter {
             device.removeFromDatabase();
         }
 
-        const data: Events.DeviceLeavePayload = {ieeeAddr: payload.ieeeAddr};
+        const data: Events.DeviceLeavePayload = { ieeeAddr: payload.ieeeAddr };
         this.emit(Events.Events.deviceLeave, data);
     }
 
@@ -372,10 +372,10 @@ class Controller extends events.EventEmitter {
             );
             device.save();
 
-            const deviceJoinedPayload: Events.DeviceJoinedPayload = {device};
+            const deviceJoinedPayload: Events.DeviceJoinedPayload = { device };
             this.emit(Events.Events.deviceJoined, deviceJoinedPayload);
 
-            const deviceInterviewPayload: Events.DeviceInterviewPayload = {status: 'successful', device};
+            const deviceInterviewPayload: Events.DeviceInterviewPayload = { status: 'successful', device };
             this.emit(Events.Events.deviceInterview, deviceInterviewPayload);
         }
     }
@@ -402,7 +402,7 @@ class Controller extends events.EventEmitter {
                 undefined, undefined, undefined, false, []
             );
 
-            const eventData: Events.DeviceJoinedPayload = {device};
+            const eventData: Events.DeviceJoinedPayload = { device };
             this.emit(Events.Events.deviceJoined, eventData);
         } else if (device.networkAddress !== payload.networkAddress) {
             debug.log(
@@ -421,18 +421,18 @@ class Controller extends events.EventEmitter {
         device.updateLastSeen();
 
         if (!device.interviewCompleted && !device.interviewing) {
-            const payloadStart: Events.DeviceInterviewPayload = {status: 'started', device};
+            const payloadStart: Events.DeviceInterviewPayload = { status: 'started', device };
             debug.log(`Interview '${device.ieeeAddr}' start`);
             this.emit(Events.Events.deviceInterview, payloadStart);
 
             try {
                 await device.interview();
                 debug.log(`Succesfully interviewed '${device.ieeeAddr}'`);
-                const event: Events.DeviceInterviewPayload = {status: 'successful', device};
+                const event: Events.DeviceInterviewPayload = { status: 'successful', device };
                 this.emit(Events.Events.deviceInterview, event);
             } catch (error) {
                 debug.error(`Interview failed for '${device.ieeeAddr} with error '${error}'`);
-                const event: Events.DeviceInterviewPayload = {status: 'failed', device};
+                const event: Events.DeviceInterviewPayload = { status: 'failed', device };
                 this.emit(Events.Events.deviceInterview, event);
             }
         } else {
@@ -538,7 +538,7 @@ class Controller extends events.EventEmitter {
             if (type === 'readResponse' || type === 'attributeReport') {
                 // Some device report, e.g. it's modelID through a readResponse or attributeReport
                 for (const [key, value] of Object.entries(data)) {
-                    const property =  Device.ReportablePropertiesMapping[key];
+                    const property = Device.ReportablePropertiesMapping[key];
                     if (property && !device[property.key]) {
                         property.set(value, device);
                     }
