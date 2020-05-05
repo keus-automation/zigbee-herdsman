@@ -3783,6 +3783,16 @@ const Cluster: {
                     { name: 'dataLen', type: DataType.uint8 },
                     { name: 'data', type: BuffaloZclDataType.LIST_UINT8 }
                 ]
+            },
+            appMsgNoRsp: {
+                ID: 2,
+                response: 0,
+                parameters: [
+                    { name: 'clusterId', type: DataType.uint8 },
+                    { name: 'commandId', type: DataType.uint8 },
+                    { name: 'dataLen', type: DataType.uint8 },
+                    { name: 'data', type: BuffaloZclDataType.LIST_UINT8 }
+                ]
             }
         },
         commandsResponse: {
