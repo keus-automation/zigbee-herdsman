@@ -1,5 +1,5 @@
-import {Device, Endpoint} from "./model";
-import {KeyValue} from "./tstype";
+import { Device, Endpoint } from "./model";
+import { KeyValue } from "./tstype";
 
 enum Events {
     message = "message",
@@ -27,7 +27,7 @@ interface DeviceLeavePayload {
     ieeeAddr: string;
 }
 
-const CommandsLookup: {[s: string]: MessagePayloadType} = {
+const CommandsLookup: { [s: string]: MessagePayloadType } = {
     'notification': 'commandNotification',
     'on': 'commandOn',
     'offWithEffect': 'commandOffWithEffect',
@@ -67,7 +67,8 @@ const CommandsLookup: {[s: string]: MessagePayloadType} = {
     'getWeeklyScheduleRsp': 'commandGetWeeklyScheduleRsp',
     'queryNextImageRequest': 'commandQueryNextImageRequest',
     'appMsg': 'commandAppMsg',
-    'appMsgRsp': 'commandAppMsgRsp'
+    'appMsgRsp': 'commandAppMsgRsp',
+    'alertsNotification': 'commandAlertsNotification'
 };
 
 type MessagePayloadType =
@@ -83,7 +84,8 @@ type MessagePayloadType =
     'commandOperationEventNotification' | 'commandStatusChangeNotification' | 'commandEnhancedMoveToHueAndSaturation' |
     'commandUpOpen' | 'commandDownClose' | 'commandMoveToLevel' | 'commandMoveColorTemp' | 'commandGetData' |
     'commandSetDataResponse' | 'commandGetWeeklyScheduleRsp' | 'commandQueryNextImageRequest' | 'commandNotification' |
-    'commandAppMsg' | 'commandAppMsgRsp';
+    'commandAppMsg' | 'commandAppMsgRsp' |
+    'commandAlertsNotification';
 
 interface MessagePayload {
     type: MessagePayloadType;

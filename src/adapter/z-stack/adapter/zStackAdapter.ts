@@ -121,8 +121,8 @@ class ZStackAdapter extends Adapter {
     public async getCoordinator(): Promise<Coordinator> {
         return this.queue.execute<Coordinator>(async () => {
             const activeEpRsp = this.znp.waitFor(UnpiConstants.Type.AREQ, Subsystem.ZDO, 'activeEpRsp');
-            await this.znp.request(Subsystem.ZDO, 'activeEpReq', {dstaddr: 0, nwkaddrofinterest: 0});
-            const activeEp = await activeEpRsp.promise;
+            await this.znp.request(Subsystem.ZDO, 'activeEpReq', {dstaddr: 0, nwkaddrofinterest: 0}, activeEpRsp.ID);
+            const activeEp = await activeEpRsp.start().promise;
 
             const deviceInfo = await this.znp.request(Subsystem.UTIL, 'getDeviceInfo', {});
 
@@ -132,8 +132,11 @@ class ZStackAdapter extends Adapter {
                     UnpiConstants.Type.AREQ, Subsystem.ZDO, 'simpleDescRsp', {endpoint}
                 );
 
-                this.znp.request(Subsystem.ZDO, 'simpleDescReq', {dstaddr: 0, nwkaddrofinterest: 0, endpoint});
-                const simpleDesc = await simpleDescRsp.promise;
+                await this.znp.request(
+                    Subsystem.ZDO, 'simpleDescReq', {dstaddr: 0, nwkaddrofinterest: 0, endpoint}, simpleDescRsp.ID
+                );
+
+                const simpleDesc = await simpleDescRsp.start().promise;
 
                 endpoints.push({
                     ID: simpleDesc.payload.endpoint,
@@ -207,8 +210,8 @@ class ZStackAdapter extends Adapter {
     private async nodeDescriptorInternal(networkAddress: number): Promise<NodeDescriptor> {
         const response = this.znp.waitFor(Type.AREQ, Subsystem.ZDO, 'nodeDescRsp', {nwkaddr: networkAddress});
         const payload = {dstaddr: networkAddress, nwkaddrofinterest: networkAddress};
-        this.znp.request(Subsystem.ZDO, 'nodeDescReq', payload);
-        const descriptor = await response.promise;
+        await this.znp.request(Subsystem.ZDO, 'nodeDescReq', payload, response.ID);
+        const descriptor = await response.start().promise;
 
         let type: DeviceType = 'Unknown';
         const logicalType = descriptor.payload.logicaltype_cmplxdescavai_userdescavai & 0x07;
@@ -228,8 +231,8 @@ class ZStackAdapter extends Adapter {
         return this.queue.execute<ActiveEndpoints>(async () => {
             const response = this.znp.waitFor(Type.AREQ, Subsystem.ZDO, 'activeEpRsp', {nwkaddr: networkAddress});
             const payload = {dstaddr: networkAddress, nwkaddrofinterest: networkAddress};
-            this.znp.request(Subsystem.ZDO, 'activeEpReq', payload);
-            const activeEp = await response.promise;
+            await this.znp.request(Subsystem.ZDO, 'activeEpReq', payload, response.ID);
+            const activeEp = await response.start().promise;
             return {endpoints: activeEp.payload.activeeplist};
         }, networkAddress);
     }
@@ -239,8 +242,8 @@ class ZStackAdapter extends Adapter {
             const responsePayload = {nwkaddr: networkAddress, endpoint: endpointID};
             const response = this.znp.waitFor(Type.AREQ, Subsystem.ZDO, 'simpleDescRsp', responsePayload);
             const payload = {dstaddr: networkAddress, nwkaddrofinterest: networkAddress, endpoint: endpointID};
-            this.znp.request(Subsystem.ZDO, 'simpleDescReq', payload);
-            const descriptor = await response.promise;
+            await this.znp.request(Subsystem.ZDO, 'simpleDescReq', payload, response.ID);
+            const descriptor = await response.start().promise;
             return {
                 profileID: descriptor.payload.profileid,
                 endpointID: descriptor.payload.endpoint,
@@ -269,12 +272,12 @@ class ZStackAdapter extends Adapter {
         let response = null;
         const command = zclFrame.getCommand();
         if (command.hasOwnProperty('response')) {
-            response = this.waitFor(
+            response = this.waitForInternal(
                 networkAddress, endpoint, zclFrame.Header.frameControl.frameType, Direction.SERVER_TO_CLIENT,
                 zclFrame.Header.transactionSequenceNumber, zclFrame.Cluster.ID, command.response, timeout
             );
         } else if (!zclFrame.Header.frameControl.disableDefaultResponse) {
-            response = this.waitFor(
+            response = this.waitForInternal(
                 networkAddress, endpoint, FrameType.GLOBAL, Direction.SERVER_TO_CLIENT,
                 zclFrame.Header.transactionSequenceNumber, zclFrame.Cluster.ID, Foundation.defaultRsp.ID,
                 timeout,
@@ -296,7 +299,7 @@ class ZStackAdapter extends Adapter {
 
         if (response !== null) {
             try {
-                const result = await response.promise;
+                const result = await response.start().promise;
                 return result;
             } catch (error) {
                 if (firstAttempt) {
@@ -353,8 +356,10 @@ class ZStackAdapter extends Adapter {
             // eslint-disable-next-line
             const request = async (startIndex: number): Promise<any> => {
                 const response = this.znp.waitFor(Type.AREQ, Subsystem.ZDO, 'mgmtLqiRsp', {srcaddr: networkAddress});
-                this.znp.request(Subsystem.ZDO, 'mgmtLqiReq', {dstaddr: networkAddress, startindex: startIndex});
-                const result = await response.promise;
+                await this.znp.request(
+                    Subsystem.ZDO, 'mgmtLqiReq', {dstaddr: networkAddress, startindex: startIndex}, response.ID
+                );
+                const result = await response.start().promise;
                 if (result.payload.status !== 0) {
                     throw new Error(`LQI for '${networkAddress}' failed`);
                 }
@@ -397,8 +402,10 @@ class ZStackAdapter extends Adapter {
             // eslint-disable-next-line
             const request = async (startIndex: number): Promise<any> => {
                 const response = this.znp.waitFor(Type.AREQ, Subsystem.ZDO, 'mgmtRtgRsp', {srcaddr: networkAddress});
-                this.znp.request(Subsystem.ZDO, 'mgmtRtgReq', {dstaddr: networkAddress, startindex: startIndex});
-                const result = await response.promise;
+                await this.znp.request(
+                    Subsystem.ZDO, 'mgmtRtgReq', {dstaddr: networkAddress, startindex: startIndex}, response.ID
+                );
+                const result = await response.start().promise;
                 if (result.payload.status !== 0) {
                     throw new Error(`Routing table for '${networkAddress}' failed`);
                 }
@@ -451,8 +458,8 @@ class ZStackAdapter extends Adapter {
                 dstendpoint: type === 'group' ? 0xFF : destinationEndpoint,
             };
 
-            this.znp.request(Subsystem.ZDO, 'bindReq', payload);
-            await response.promise;
+            await this.znp.request(Subsystem.ZDO, 'bindReq', payload, response.ID);
+            await response.start().promise;
         }, destinationNetworkAddress);
     }
 
@@ -477,8 +484,8 @@ class ZStackAdapter extends Adapter {
                 dstendpoint: type === 'group' ? 0xFF : destinationEndpoint,
             };
 
-            this.znp.request(Subsystem.ZDO, 'unbindReq', payload);
-            await response.promise;
+            await this.znp.request(Subsystem.ZDO, 'unbindReq', payload, response.ID);
+            await response.start().promise;
         }, destinationNetworkAddress);
     }
 
@@ -494,8 +501,8 @@ class ZStackAdapter extends Adapter {
                 removechildrenRejoin: 0,
             };
 
-            this.znp.request(Subsystem.ZDO, 'mgmtLeaveReq', payload);
-            await response.promise;
+            await this.znp.request(Subsystem.ZDO, 'mgmtLeaveReq', payload, response.ID);
+            await response.start().promise;
         }, networkAddress);
     }
 
@@ -616,7 +623,7 @@ class ZStackAdapter extends Adapter {
                 throw new Error(`Command '${command.name}' has no response, cannot wait for response`);
             }
 
-            const response = this.waitFor(
+            const response = this.waitForInternal(
                 null, 0xFE, zclFrame.Header.frameControl.frameType, Direction.SERVER_TO_CLIENT, null,
                 zclFrame.Cluster.ID, command.response, timeout
             );
@@ -631,7 +638,7 @@ class ZStackAdapter extends Adapter {
                 throw error;
             }
 
-            return response.promise;
+            return response.start().promise;
         });
     }
 
@@ -649,10 +656,10 @@ class ZStackAdapter extends Adapter {
         });
     }
 
-    public waitFor(
+    private waitForInternal(
         networkAddress: number, endpoint: number, frameType: FrameType, direction: Direction,
         transactionSequenceNumber: number, clusterID: number, commandIdentifier: number, timeout: number,
-    ): {promise: Promise<Events.ZclDataPayload>; cancel: () => void} {
+    ): {start: () => {promise: Promise<Events.ZclDataPayload>}; cancel: () => void} {
         const payload = {
             address: networkAddress, endpoint, clusterID, commandIdentifier, frameType, direction,
             transactionSequenceNumber,
@@ -660,7 +667,19 @@ class ZStackAdapter extends Adapter {
 
         const waiter = this.waitress.waitFor(payload, timeout);
         const cancel = (): void => this.waitress.remove(waiter.ID);
-        return {promise: waiter.promise, cancel};
+        return {start: waiter.start, cancel};
+    }
+
+    public waitFor(
+        networkAddress: number, endpoint: number, frameType: FrameType, direction: Direction,
+        transactionSequenceNumber: number, clusterID: number, commandIdentifier: number, timeout: number,
+    ): {promise: Promise<Events.ZclDataPayload>; cancel: () => void} {
+        const waiter = this.waitForInternal(
+            networkAddress, endpoint, frameType, direction, transactionSequenceNumber, clusterID,
+            commandIdentifier, timeout,
+        );
+
+        return {cancel: waiter.cancel, promise: waiter.start().promise};
     }
 
     /**
@@ -675,24 +694,19 @@ class ZStackAdapter extends Adapter {
             Type.AREQ, Subsystem.AF, 'dataConfirm', {transid: transactionID}, timeout
         );
 
-        try {
-            await this.znp.request(Subsystem.AF, 'dataRequest', {
-                dstaddr: destinationAddress,
-                destendpoint: destinationEndpoint,
-                srcendpoint: sourceEndpoint,
-                clusterid: clusterID,
-                transid: transactionID,
-                options: 0, // TODO: why was this here? Constants.AF.options.ACK_REQUEST | DISCV_ROUTE,
-                radius: radius,
-                len: data.length,
-                data: data,
-            });
-        } catch (error) {
-            this.znp.removeWaitFor(response.ID);
-            throw error;
-        }
+        await this.znp.request(Subsystem.AF, 'dataRequest', {
+            dstaddr: destinationAddress,
+            destendpoint: destinationEndpoint,
+            srcendpoint: sourceEndpoint,
+            clusterid: clusterID,
+            transid: transactionID,
+            options: 0, // TODO: why was this here? Constants.AF.options.ACK_REQUEST | DISCV_ROUTE,
+            radius: radius,
+            len: data.length,
+            data: data,
+        }, response.ID);
 
-        const dataConfirm = await response.promise;
+        const dataConfirm = await response.start().promise;
         if (dataConfirm.payload.status !== 0) {
             if ([225, 240].includes(dataConfirm.payload.status) && attemptsLeft > 0) {
                 /**
@@ -730,30 +744,22 @@ class ZStackAdapter extends Adapter {
         const response = confirmation ?
             this.znp.waitFor(Type.AREQ, Subsystem.AF, 'dataConfirm', {transid: transactionID}, timeout) : null;
 
-        try {
-            await this.znp.request(Subsystem.AF, 'dataRequestExt', {
-                dstaddrmode: addressMode,
-                dstaddr: this.toAddressString(destinationAddressOrGroupID),
-                destendpoint: destinationEndpoint,
-                dstpanid: panID,
-                srcendpoint: sourceEndpoint,
-                clusterid: clusterID,
-                transid: transactionID,
-                options: 0, // TODO: why was this here? Constants.AF.options.DISCV_ROUTE,
-                radius,
-                len: data.length,
-                data: data,
-            });
-        } catch (error) {
-            if (confirmation) {
-                this.znp.removeWaitFor(response.ID);
-            }
-
-            throw error;
-        }
+        await this.znp.request(Subsystem.AF, 'dataRequestExt', {
+            dstaddrmode: addressMode,
+            dstaddr: this.toAddressString(destinationAddressOrGroupID),
+            destendpoint: destinationEndpoint,
+            dstpanid: panID,
+            srcendpoint: sourceEndpoint,
+            clusterid: clusterID,
+            transid: transactionID,
+            options: 0, // TODO: why was this here? Constants.AF.options.DISCV_ROUTE,
+            radius,
+            len: data.length,
+            data: data,
+        }, response ? response.ID : null);
 
         if (confirmation) {
-            const dataConfirm = await response.promise;
+            const dataConfirm = await response.start().promise;
             if (dataConfirm.payload.status !== 0) {
                 if (dataConfirm.payload.status === 225 && attemptsLeft > 0) {
                     /**
