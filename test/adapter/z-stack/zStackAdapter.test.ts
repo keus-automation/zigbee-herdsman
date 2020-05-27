@@ -40,7 +40,7 @@ const getTempFile = () => {
 
 const Type = UnpiConstants.Type;
 const Subsystem = UnpiConstants.Subsystem;
-const NvItemsIds = Constants.COMMON.nvItemIds;
+const {DevStates, NvItemsIds, NvSystemIds} = Constants.COMMON;
 
 const mockZnpRequest = jest.fn().mockReturnValue({payload: {}});
 const mockZnpWaitfor = jest.fn();
@@ -147,7 +147,7 @@ const basicMocks = () => {
                 missing();
             }
         } else if (subsystem === Subsystem.UTIL && command === 'getDeviceInfo') {
-            return {payload: {devicestate: Constants.COMMON.devStates.ZB_COORD, ieeeaddr: '0x123'}};
+            return {payload: {devicestate: DevStates.ZB_COORD, ieeeaddr: '0x123'}};
         } else if (subsystem === Subsystem.ZDO && command === 'activeEpReq') {
             return {};
         } else if (subsystem === Subsystem.ZDO && command === 'simpleDescReq') {
@@ -340,7 +340,7 @@ describe('zStackAdapter', () => {
                     missing();
                 }
             } else if (subsystem === Subsystem.UTIL && command === 'getDeviceInfo') {
-                return {payload: {devicestate: Constants.COMMON.devStates.ZB_COORD}};
+                return {payload: {devicestate: DevStates.ZB_COORD}};
             } else if (subsystem === Subsystem.ZDO && command === 'activeEpReq') {
                 return {};
             } else if (subsystem === Subsystem.AF && command === 'register') {
@@ -448,7 +448,7 @@ describe('zStackAdapter', () => {
         expect(mockZnpRequest.mock.calls[32][1]).toBe('register');
         expect(mockZnpRequest.mock.calls[32][2].endpoint).toBe(11);
         expect(mockZnpRequest.mock.calls[32][2].appprofid).toBe(0x0104);
-        expect(mockZnpRequest.mock.calls[32][2].appoutclusterlist).toStrictEqual([1280]);
+        expect(mockZnpRequest.mock.calls[32][2].appoutclusterlist).toStrictEqual([1280,1282]);
         expect(mockZnpRequest.mock.calls[33][1]).toBe('register');
         expect(mockZnpRequest.mock.calls[33][2].endpoint).toBe(110);
         expect(mockZnpRequest.mock.calls[33][2].appprofid).toBe(0x0104);
@@ -469,7 +469,7 @@ describe('zStackAdapter', () => {
         expect(mockZnpRequest).toHaveBeenCalledTimes(39);
     });
 
-    it('onlythis Start zStack 3.x.0 initialize fails because of state change timeout', async () => {
+    it('Start zStack 3.x.0 initialize fails because of state change timeout', async () => {
         mockZnpRequest.mockImplementation((subsystem, command, payload, expectedStatus) => {
             const missing = () => {
                 const msg = `Not implemented - ${Subsystem[subsystem]} - ${command} - ${JSON.stringify(payload)}`;
@@ -495,7 +495,7 @@ describe('zStackAdapter', () => {
                     missing();
                 }
             } else if (subsystem === Subsystem.UTIL && command === 'getDeviceInfo') {
-                return {payload: {devicestate: Constants.COMMON.devStates.ZB_COORD}};
+                return {payload: {devicestate: DevStates.ZB_COORD}};
             } else if (subsystem === Subsystem.ZDO && command === 'activeEpReq') {
                 return {};
             } else if (subsystem === Subsystem.AF && command === 'register') {
@@ -567,7 +567,7 @@ describe('zStackAdapter', () => {
                     missing();
                 }
             } else if (subsystem === Subsystem.UTIL && command === 'getDeviceInfo') {
-                return {payload: {devicestate: Constants.COMMON.devStates.ZB_COORD}};
+                return {payload: {devicestate: DevStates.ZB_COORD}};
             } else if (subsystem === Subsystem.ZDO && command === 'activeEpReq') {
                 return {};
             } else if (subsystem === Subsystem.AF && command === 'register') {
@@ -675,7 +675,7 @@ describe('zStackAdapter', () => {
                     missing();
                 }
             } else if (subsystem === Subsystem.UTIL && command === 'getDeviceInfo') {
-                return {payload: {devicestate: Constants.COMMON.devStates.ZB_COORD}};
+                return {payload: {devicestate: DevStates.ZB_COORD}};
             } else if (subsystem === Subsystem.ZDO && command === 'activeEpReq') {
                 return {};
             } else if (subsystem === Subsystem.AF && command === 'register') {
@@ -755,7 +755,7 @@ describe('zStackAdapter', () => {
                     missing();
                 }
             } else if (subsystem === Subsystem.UTIL && command === 'getDeviceInfo') {
-                return {payload: {devicestate: Constants.COMMON.devStates.ZB_COORD}};
+                return {payload: {devicestate: DevStates.ZB_COORD}};
             } else if (subsystem === Subsystem.ZDO && command === 'activeEpReq') {
                 return {};
             } else if (subsystem === Subsystem.AF && command === 'register') {
@@ -849,7 +849,7 @@ describe('zStackAdapter', () => {
                     missing();
                 }
             } else if (subsystem === Subsystem.UTIL && command === 'getDeviceInfo') {
-                return {payload: {devicestate: Constants.COMMON.devStates.ZB_COORD}};
+                return {payload: {devicestate: DevStates.ZB_COORD}};
             } else if (subsystem === Subsystem.ZDO && command === 'activeEpReq') {
                 return {};
             } else if (subsystem === Subsystem.AF && command === 'register') {
@@ -914,7 +914,7 @@ describe('zStackAdapter', () => {
                     missing();
                 }
             } else if (subsystem === Subsystem.UTIL && command === 'getDeviceInfo') {
-                return {payload: {devicestate: Constants.COMMON.devStates.ZB_COORD}};
+                return {payload: {devicestate: DevStates.ZB_COORD}};
             } else if (subsystem === Subsystem.ZDO && command === 'activeEpReq') {
                 return {};
             } else if (subsystem === Subsystem.AF && command === 'register') {
@@ -1025,7 +1025,7 @@ describe('zStackAdapter', () => {
         expect(mockZnpRequest.mock.calls[32][1]).toBe('register');
         expect(mockZnpRequest.mock.calls[32][2].endpoint).toBe(11);
         expect(mockZnpRequest.mock.calls[32][2].appprofid).toBe(0x0104);
-        expect(mockZnpRequest.mock.calls[32][2].appoutclusterlist).toStrictEqual([1280]);
+        expect(mockZnpRequest.mock.calls[32][2].appoutclusterlist).toStrictEqual([1280,1282]);
         expect(mockZnpRequest.mock.calls[33][1]).toBe('register');
         expect(mockZnpRequest.mock.calls[33][2].endpoint).toBe(110);
         expect(mockZnpRequest.mock.calls[33][2].appprofid).toBe(0x0104);
@@ -1142,7 +1142,7 @@ describe('zStackAdapter', () => {
         expect(mockZnpRequest.mock.calls[11][1]).toBe('activeEpReq');
         expect(mockZnpRequest.mock.calls[12][2].endpoint).toBe(11);
         expect(mockZnpRequest.mock.calls[12][2].appprofid).toBe(0x0104);
-        expect(mockZnpRequest.mock.calls[12][2].appoutclusterlist).toStrictEqual([1280]);
+        expect(mockZnpRequest.mock.calls[12][2].appoutclusterlist).toStrictEqual([1280,1282]);
         expect(mockZnpRequest.mock.calls[13][2].endpoint).toBe(110);
         expect(mockZnpRequest.mock.calls[13][2].appprofid).toBe(0x0104);
         expect(mockZnpRequest.mock.calls[13][2].appoutclusterlist).toStrictEqual([]);
@@ -1260,7 +1260,7 @@ describe('zStackAdapter', () => {
         expect(mockZnpRequest.mock.calls[11][1]).toBe('activeEpReq');
         expect(mockZnpRequest.mock.calls[12][2].endpoint).toBe(11);
         expect(mockZnpRequest.mock.calls[12][2].appprofid).toBe(0x0104);
-        expect(mockZnpRequest.mock.calls[12][2].appoutclusterlist).toStrictEqual([1280]);
+        expect(mockZnpRequest.mock.calls[12][2].appoutclusterlist).toStrictEqual([1280,1282]);
         expect(mockZnpRequest.mock.calls[13][2].endpoint).toBe(110);
         expect(mockZnpRequest.mock.calls[13][2].appprofid).toBe(0x0104);
         expect(mockZnpRequest.mock.calls[13][2].appoutclusterlist).toStrictEqual([]);
@@ -1381,7 +1381,7 @@ describe('zStackAdapter', () => {
             } else if (subsystem === Subsystem.SYS && command === 'resetReq') {
                 return {};
             } else if (subsystem === Subsystem.UTIL && command === 'getDeviceInfo') {
-                return {payload: {devicestate: Constants.COMMON.devStates.ZB_COORD}};
+                return {payload: {devicestate: DevStates.ZB_COORD}};
             } else if (subsystem === Subsystem.ZDO && command === 'activeEpReq') {
                 return {};
             } else if (subsystem === Subsystem.ZDO && command === 'startupFromApp') {
@@ -1486,7 +1486,7 @@ describe('zStackAdapter', () => {
             } else if (subsystem === Subsystem.SYS && command === 'resetReq') {
                 return {};
             } else if (subsystem === Subsystem.UTIL && command === 'getDeviceInfo') {
-                return {payload: {devicestate: Constants.COMMON.devStates.ZB_COORD}};
+                return {payload: {devicestate: DevStates.ZB_COORD}};
             } else if (subsystem === Subsystem.ZDO && command === 'activeEpReq') {
                 return {};
             } else if (subsystem === Subsystem.ZDO && command === 'startupFromApp') {
@@ -1765,7 +1765,7 @@ describe('zStackAdapter', () => {
                     missing();
                 }
             } else if (subsystem === Subsystem.UTIL && command === 'getDeviceInfo') {
-                return {payload: {devicestate: Constants.COMMON.devStates.ZB_COORD}};
+                return {payload: {devicestate: DevStates.ZB_COORD}};
             } else if (subsystem === Subsystem.ZDO && command === 'activeEpReq') {
                 return {};
             } else if (subsystem === Subsystem.SAPI && command === 'readConfiguration') {
@@ -1847,21 +1847,21 @@ describe('zStackAdapter', () => {
                     missing();
                 }
             } else if (subsystem === Subsystem.SYS && command === 'nvLength') {
-                if (equalsPartial(payload, {sysid: Constants.COMMON.nvSystemIds.ZSTACK, itemid: NvItemsIds.EX_NWK_SEC_MATERIAL_TABLE, offset: 0})) {
+                if (equalsPartial(payload, {sysid: NvSystemIds.ZSTACK, itemid: NvItemsIds.EX_NWK_SEC_MATERIAL_TABLE, offset: 0})) {
                     return {payload: {len: backup.data.ZCD_NV_EX_NWK_SEC_MATERIAL_TABLE.len}}
                 }
-                else if (equalsPartial(payload, {sysid: Constants.COMMON.nvSystemIds.ZSTACK, itemid: NvItemsIds.EX_TCLK_TABLE, offset: 0})) {
+                else if (equalsPartial(payload, {sysid: NvSystemIds.ZSTACK, itemid: NvItemsIds.EX_TCLK_TABLE, offset: 0})) {
                     return {payload: {len: backup.data.ZCD_NV_EX_TCLK_TABLE.len}}
                 }
             } else if (subsystem === Subsystem.SYS && command === 'nvRead') {
-                if (equalsPartial(payload, {sysid: Constants.COMMON.nvSystemIds.ZSTACK, itemid: NvItemsIds.EX_NWK_SEC_MATERIAL_TABLE, offset: 0})) {
+                if (equalsPartial(payload, {sysid: NvSystemIds.ZSTACK, itemid: NvItemsIds.EX_NWK_SEC_MATERIAL_TABLE, offset: 0})) {
                     return {payload: {value: Buffer.from(backup.data.ZCD_NV_EX_NWK_SEC_MATERIAL_TABLE.value)}};
                 }
-                else if (equalsPartial(payload, {sysid: Constants.COMMON.nvSystemIds.ZSTACK, itemid: NvItemsIds.EX_TCLK_TABLE, offset: 0})) {
+                else if (equalsPartial(payload, {sysid: NvSystemIds.ZSTACK, itemid: NvItemsIds.EX_TCLK_TABLE, offset: 0})) {
                     return {payload: {value: Buffer.from(backup.data.ZCD_NV_EX_TCLK_TABLE.value)}};
                 }
             } else if (subsystem === Subsystem.UTIL && command === 'getDeviceInfo') {
-                return {payload: {devicestate: Constants.COMMON.devStates.ZB_COORD}};
+                return {payload: {devicestate: DevStates.ZB_COORD}};
             } else if (subsystem === Subsystem.ZDO && command === 'activeEpReq') {
                 return {};
             } else {

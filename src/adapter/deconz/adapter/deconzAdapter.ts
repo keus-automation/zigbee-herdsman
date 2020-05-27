@@ -13,11 +13,22 @@ import {ZclFrame, FrameType, Direction, Foundation} from '../../../zcl';
 import * as Events from '../../events';
 import * as Zcl from '../../../zcl';
 import processFrame from '../driver/frameParser';
-import {Queue} from '../../../utils';
+import {Queue, Waitress, Wait} from '../../../utils';
 import PARAM from '../driver/constants';
 import { Command, WaitForDataRequest, ApsDataRequest, ReceivedDataResponse, DataStateResponse } from '../driver/constants';
 
 var frameParser = require('../driver/frameParser');
+
+interface WaitressMatcher {
+    address: number | string;
+    endpoint: number;
+    transactionSequenceNumber?: number;
+    frameType: FrameType;
+    clusterID: number;
+    commandIdentifier: number;
+    direction: number;
+};
+
 class DeconzAdapter extends Adapter {
     private driver: Driver;
     private queue: Queue;
@@ -26,6 +37,7 @@ class DeconzAdapter extends Adapter {
     private frameParserEvent = frameParser.frameParserEvents;
     private joinPermitted: boolean;
     private fwVersion: CoordinatorVersion;
+    private waitress: Waitress<Events.ZclDataPayload, WaitressMatcher>;
 
     public constructor(networkOptions: NetworkOptions,
         serialPortOptions: SerialPortOptions, backupPath: string, adapterOptions: AdapterOptions) {
@@ -34,6 +46,10 @@ class DeconzAdapter extends Adapter {
 
         const concurrent = this.adapterOptions && this.adapterOptions.concurrent ?
             this.adapterOptions.concurrent : 2;
+
+        this.waitress = new Waitress<Events.ZclDataPayload, WaitressMatcher>(
+            this.waitressValidator, this.waitressTimeoutFormatter
+        );
 
         this.driver = new Driver(serialPortOptions.path);
         this.driver.on('rxFrame', (frame) => {processFrame(frame)});
@@ -489,7 +505,13 @@ class DeconzAdapter extends Adapter {
         networkAddress: number, endpoint: number, frameType: FrameType, direction: Direction,
         transactionSequenceNumber: number, clusterID: number, commandIdentifier: number, timeout: number,
     ): {promise: Promise<Events.ZclDataPayload>; cancel: () => void} {
-        return null;
+        const payload = {
+            address: networkAddress, endpoint, clusterID, commandIdentifier, frameType, direction,
+            transactionSequenceNumber,
+        };
+        const waiter = this.waitress.waitFor(payload, timeout);
+        const cancel = (): void => this.waitress.remove(waiter.ID);
+        return {promise: waiter.start().promise, cancel};
     }
 
     public async sendZclFrameToEndpoint(
@@ -497,40 +519,12 @@ class DeconzAdapter extends Adapter {
     ): Promise<Events.ZclDataPayload> {
         const transactionID = this.nextTransactionID();
         const request: ApsDataRequest = {};
-        let frameControl: string = "";
-        frameControl += (0);
-        frameControl += (0);
-        frameControl += (0);
-        frameControl += ((zclFrame.Header.frameControl.disableDefaultResponse) ? 1 : 0);
-        frameControl += (zclFrame.Header.frameControl.direction);
-        frameControl += ((zclFrame.Header.frameControl.manufacturerSpecific) ? 1 : 0);
-        frameControl += (0);
-        frameControl += (zclFrame.Header.frameControl.frameType);
-        let payload = [parseInt(frameControl,2), zclFrame.Header.transactionSequenceNumber, zclFrame.Header.commandIdentifier];
+        let pay = zclFrame.toBuffer();
 
-        let pay: number[] = [];
-        if ((typeof zclFrame.Payload) === 'object') {
-            if (Array.isArray(zclFrame.Payload)) {
-                for (let i in zclFrame.Payload) {
-                    let entry = zclFrame.Payload[i];
-                    if ((typeof entry) === 'object') {
-                        // payload is array of objects
-                        const array: number[] = Object.values(entry);
-                        for (let val in array) {
-                            payload.push(array[val] & 0xff);
-                            payload.push((array[val] >> 8) & 0xff);
-                        }
-                    } else {
-                        // payload is array of raw data
-                        payload.push(entry);
-                    }
-                }
-                pay = payload;
-            } else {
-                // payload is object
-                pay = payload.concat(this.zclPayloadToArray(zclFrame.Payload));
-            }
-        }
+        debug("zclFrame.payload:");
+        debug(zclFrame.Payload);
+        //console.log("zclFramte.toBuffer:");
+        //console.log(pay);
 
         request.requestId = transactionID;
         request.destAddrMode = PARAM.PARAM.addressMode.NWK_ADDR;
@@ -540,36 +534,53 @@ class DeconzAdapter extends Adapter {
         request.clusterId = zclFrame.Cluster.ID;
         request.srcEndpoint = 1;
         request.asduLength = pay.length;
-        request.asduPayload = pay;
+        request.asduPayload = [... pay];
         request.txOptions = 0;
         request.radius = PARAM.PARAM.txRadius.DEFAULT_RADIUS;
         request.timeout = timeout;
 
+        const command = zclFrame.getCommand();
+
         this.driver.enqueueSendDataRequest(request)
             .then(result => {
                 debug(`sendZclFrameToEndpoint - message send`);
+                if (!command.hasOwnProperty('response') || zclFrame.Header.frameControl.disableDefaultResponse) {
+                    return Promise.resolve();
+                }
             })
             .catch(error => {
                 debug(`sendZclFrameToEndpoint ERROR: ${error}`);
                 return Promise.reject();
             });
+        try {
+                let data = null;
+                if (command.hasOwnProperty('response')) {
+                    data = await this.waitForData(networkAddress, 0x104, zclFrame.Cluster.ID);
+                } else if (!zclFrame.Header.frameControl.disableDefaultResponse) {
+                    data = await this.waitForData(networkAddress, 0x104, zclFrame.Cluster.ID);
+                }
 
-            try {
-                const data = await this.waitForData(networkAddress, 0x104, zclFrame.Cluster.ID);
-                const asdu = data.asduPayload;
-                const buffer = Buffer.from(asdu);
-                const frame: ZclFrame = ZclFrame.fromBuffer(zclFrame.Cluster.ID, buffer);
-                const response: Events.ZclDataPayload = {
-                    address: (data.srcAddrMode === 0x02) ? data.srcAddr16 : null,
-                    frame: frame,
-                    endpoint: data.srcEndpoint,
-                    linkquality: data.lqi,
-                    groupID: (data.srcAddrMode === 0x01) ? data.srcAddr16 : null
-                };
-                debug(`response received`);
-                return response;
+                if (data !== null) {
+                    const asdu = data.asduPayload;
+                    const buffer = Buffer.from(asdu);
+                    const frame: ZclFrame = ZclFrame.fromBuffer(zclFrame.Cluster.ID, buffer);
+
+                    const response: Events.ZclDataPayload = {
+                        address: (data.srcAddrMode === 0x02) ? data.srcAddr16 : null,
+                        frame: frame,
+                        endpoint: data.srcEndpoint,
+                        linkquality: data.lqi,
+                        groupID: (data.srcAddrMode === 0x01) ? data.srcAddr16 : null
+                    };
+                    debug(`response received`);
+                    return response;
+                } else {
+                    debug(`no response expected`);
+                    return null;
+                }
+
             } catch (error) {
-                //debug(`no response received`);
+                debug(`no response received`);
                 return null;
             }
     }
@@ -577,40 +588,12 @@ class DeconzAdapter extends Adapter {
     public async sendZclFrameToGroup(groupID: number, zclFrame: ZclFrame): Promise<void> {
         const transactionID = this.nextTransactionID();
         const request: ApsDataRequest = {};
-        let frameControl: string = "";
-        frameControl += (0);
-        frameControl += (0);
-        frameControl += (0);
-        frameControl += ((zclFrame.Header.frameControl.disableDefaultResponse) ? 1 : 0);
-        frameControl += (zclFrame.Header.frameControl.direction);
-        frameControl += ((zclFrame.Header.frameControl.manufacturerSpecific) ? 1 : 0);
-        frameControl += (0);
-        frameControl += (zclFrame.Header.frameControl.frameType);
-        let payload = [parseInt(frameControl,2), zclFrame.Header.transactionSequenceNumber, zclFrame.Header.commandIdentifier];
+        let pay = zclFrame.toBuffer();
 
-        let pay: number[] = [];
-        if ((typeof zclFrame.Payload) === 'object') {
-            if (Array.isArray(zclFrame.Payload)) {
-                for (let i in zclFrame.Payload) {
-                    let entry = zclFrame.Payload[i];
-                    if ((typeof entry) === 'object') {
-                        // payload is array of objects
-                        const array: number[] = Object.values(entry);
-                        for (let val in array) {
-                            payload.push(array[val] & 0xff);
-                            payload.push((array[val] >> 8) & 0xff);
-                        }
-                    } else {
-                        // payload is array of raw data
-                        payload.push(entry);
-                    }
-                }
-                pay = payload;
-            } else {
-                // payload is object
-                pay = payload.concat(this.zclPayloadToArray(zclFrame.Payload));
-            }
-        }
+        debug("zclFrame to group - zclFrame.payload:");
+        debug(zclFrame.Payload);
+        //console.log("zclFramte.toBuffer:");
+        //console.log(pay);
 
         request.requestId = transactionID;
         request.destAddrMode = PARAM.PARAM.addressMode.GROUP_ADDR;
@@ -619,11 +602,12 @@ class DeconzAdapter extends Adapter {
         request.clusterId = zclFrame.Cluster.ID;
         request.srcEndpoint = 1;
         request.asduLength = pay.length;
-        request.asduPayload = pay;
+        request.asduPayload = [... pay];
         request.txOptions = 0;
         request.radius = PARAM.PARAM.txRadius.UNLIMITED;
 
         try {
+            debug(`sendZclFrameToGroup - message send`);
             return this.driver.enqueueSendDataRequest(request) as Promise<void>;
         } catch (error) {
             debug(`sendZclFrameToGroup ERROR: ${error}`);
@@ -632,7 +616,36 @@ class DeconzAdapter extends Adapter {
     }
 
     public async sendZclFrameToAll(endpoint: number, zclFrame: ZclFrame, sourceEndpoint: number): Promise<void> {
-        // TODO: not implemented yet
+        return;
+        //TODO: does not work yet (e.g. after permit join)
+        const transactionID = this.nextTransactionID();
+        const request: ApsDataRequest = {};
+        let pay = zclFrame.toBuffer();
+
+        debug("zclFrame to all - zclFrame.payload:");
+        debug(zclFrame.Payload);
+        //console.log("zclFramte.toBuffer:");
+        //console.log(pay);
+
+        request.requestId = transactionID;
+        request.destAddrMode = PARAM.PARAM.addressMode.GROUP_ADDR;
+        request.destAddr16 = 0xFFFD;
+        request.destEndpoint = endpoint;
+        request.profileId = 0x104;
+        request.clusterId = zclFrame.Cluster.ID;
+        request.srcEndpoint = sourceEndpoint;
+        request.asduLength = pay.length;
+        request.asduPayload = [... pay];
+        request.txOptions = 0;
+        request.radius = PARAM.PARAM.txRadius.UNLIMITED;
+
+        try {
+            debug(`sendZclFrameToAll - message send`);
+            return this.driver.enqueueSendDataRequest(request) as Promise<void>;
+        } catch (error) {
+            debug(`sendZclFrameToAll ERROR: ${error}`);
+            return Promise.reject();
+        }
     }
 
     public async bind(
@@ -972,6 +985,7 @@ class DeconzAdapter extends Adapter {
                 this.emit(Events.Events.deviceAnnounce, payload);
             }
         }
+
         if (resp != null && resp.profileId != 0x00) {
             const payBuf = Buffer.from(resp.asduPayload);
             try {
@@ -983,6 +997,7 @@ class DeconzAdapter extends Adapter {
                     groupID: (resp.destAddrMode === 0x01) ? resp.destAddr16 : null
                 };
 
+                this.waitress.resolve(payload);
                 this.emit(Events.Events.zclData, payload);
             } catch (error) {
                 const payload: Events.RawDataPayload = {
@@ -999,45 +1014,6 @@ class DeconzAdapter extends Adapter {
         }
     }
 
-    private zclPayloadToArray(payload: Object): Array<number> {
-        let buf = Buffer.alloc(20); // zclPayload could be bigger ?
-        let offset = 0;
-        if ('colorx' in payload) {
-            // move to color
-            buf.writeUInt16LE(payload['colorx'], 0);
-            buf.writeUInt16LE(payload['colory'], 2);
-            buf.writeUInt16LE(payload['transtime'], 4);
-            offset = 6;
-        } else if ('enhancehue' in payload) {
-            // move to ext hue and saturation
-            buf.writeUInt16LE(payload['enhancehue'], 0);
-            buf.writeUInt8(payload['saturation'], 2);
-            buf.writeUInt16LE(payload['transtime'], 3);
-            offset = 5;
-        }
-         else {
-            for (let [key, value] of Object.entries(payload)) {
-                debug(`${key}: ${value}`);
-                switch (key) {
-                    case "level": case "cmdId": case "statusCode": case "effectid": case "effectvariant": case "saturation": case "direction":
-                        buf.writeUInt8(value, offset);
-                        offset++;
-                        break;
-                    case "transtime": case "colortemp":
-                        buf.writeUInt16LE(value, offset);
-                        offset += 2;
-                        break;
-                    default:
-                        debug("zclPayload to Array not implemented for key: " + key);
-                        break;
-                }
-            }
-        }
-
-        let ret = [...buf].splice(0, offset);
-        return ret;
-    }
-
     private nextTransactionID(): number {
         this.transactionID++;
 
@@ -1046,6 +1022,23 @@ class DeconzAdapter extends Adapter {
         }
 
         return this.transactionID;
+    }
+
+    private waitressTimeoutFormatter(matcher: WaitressMatcher, timeout: number): string {
+        return `Timeout - ${matcher.address} - ${matcher.endpoint}` +
+            ` - ${matcher.transactionSequenceNumber} - ${matcher.clusterID}` +
+            ` - ${matcher.commandIdentifier} after ${timeout}ms`;
+    }
+
+    private waitressValidator(payload: Events.ZclDataPayload, matcher: WaitressMatcher): boolean {
+        const transactionSequenceNumber = payload.frame.Header.transactionSequenceNumber;
+        return (!matcher.address || payload.address === matcher.address) &&
+            payload.endpoint === matcher.endpoint &&
+            (!matcher.transactionSequenceNumber || transactionSequenceNumber === matcher.transactionSequenceNumber) &&
+            payload.frame.Cluster.ID === matcher.clusterID &&
+            matcher.frameType === payload.frame.Header.frameControl.frameType &&
+            matcher.commandIdentifier === payload.frame.Header.commandIdentifier &&
+            matcher.direction === payload.frame.Header.frameControl.direction;
     }
 }
 
