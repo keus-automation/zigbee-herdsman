@@ -81,6 +81,7 @@ class ZStackAdapter extends Adapter {
         try {
             await this.znp.request(Subsystem.SYS, 'ping', {capabilities: 1});
         } catch (e) {
+            console.log(e);
             throw new Error(`Failed to connect to the adapter (${e})`);
         }
 

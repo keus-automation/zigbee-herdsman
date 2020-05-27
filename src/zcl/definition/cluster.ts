@@ -3772,6 +3772,7 @@ const Cluster: {
     },
     keus: {
         ID: 0x0B21,
+        manufacturerCode: ManufacturerCode.Keus,
         attributes: {},
         commands: {
             appMsg: {

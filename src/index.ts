@@ -6,6 +6,7 @@ import {
 import * as Zcl from './zcl';
 import Device from './controller/model/device';
 import Endpoint from './controller/model/endpoint';
+import BufferWriter from './zcl/buffaloZcl';
 
 export { Controller };
 export { Zcl };
@@ -15,3 +16,4 @@ export {
 };
 export { Device };
 export { Endpoint };
+export { BufferWriter };

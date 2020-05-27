@@ -275,6 +275,7 @@ class Device extends Entity {
 
     public static byIeeeAddr(ieeeAddr: string): Device {
         Device.loadFromDatabaseIfNecessary();
+        console.log('this is devices object', Device.devices, ieeeAddr);
         return Device.devices[ieeeAddr];
     }
 
