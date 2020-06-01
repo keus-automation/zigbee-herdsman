@@ -82,7 +82,6 @@ class ZStackAdapter extends Adapter {
         try {
             await this.znp.request(Subsystem.SYS, 'ping', {capabilities: 1});
         } catch (e) {
-            console.log(e);
             throw new Error(`Failed to connect to the adapter (${e})`);
         }
 
@@ -319,10 +318,10 @@ class ZStackAdapter extends Adapter {
         }
     }
 
-    public async sendZclFrameToGroup(groupID: number, zclFrame: ZclFrame): Promise<void> {
+    public async sendZclFrameToGroup(groupID: number, zclFrame: ZclFrame, sourceEndpoint?: number): Promise<void> {
         return this.queue.execute<void>(async () => {
             await this.dataRequestExtended(
-                AddressMode.ADDR_GROUP, groupID, 0xFF, 0, 1, zclFrame.Cluster.ID,
+                AddressMode.ADDR_GROUP, groupID, 0xFF, 0, sourceEndpoint, zclFrame.Cluster.ID,
                 Constants.AF.DEFAULT_RADIUS, zclFrame.toBuffer(), 3000, true
             );
 
