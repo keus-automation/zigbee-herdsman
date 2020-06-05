@@ -5,6 +5,7 @@ import {
 } from './controller/events';
 import * as Zcl from './zcl';
 import Device from './controller/model/device';
+import Group from './controller/model/group';
 import Endpoint from './controller/model/endpoint';
 import BufferWriter from './zcl/buffaloZcl';
 
@@ -15,5 +16,6 @@ export {
     DeviceLeavePayload, DeviceJoinedPayload
 };
 export { Device };
+export { Group };
 export { Endpoint };
 export { BufferWriter };

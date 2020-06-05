@@ -157,6 +157,38 @@ class Group extends Entity {
         }
     }
 
+    public static async commandStandalone(
+        clusterKey: number | string, commandKey: number | string, payload: KeyValue, groupId: number, inputOptions?: Options
+    ): Promise<void> {
+        let options: Options = {
+            direction: Zcl.Direction.CLIENT_TO_SERVER,
+            srcEndpoint: null,
+            reservedBits: 0,
+            manufacturerCode: null,
+            transactionSequenceNumber: null,
+            ...inputOptions
+        };
+
+        const cluster = Zcl.Utils.getCluster(clusterKey);
+        const command = cluster.getCommand(commandKey);
+
+        const log = `Command ${groupId} ${cluster.name}.${command.name}(${JSON.stringify(payload)})`;
+        debug.info(log);
+
+        try {
+            const frame = Zcl.ZclFrame.create(
+                Zcl.FrameType.SPECIFIC, options.direction, true, options.manufacturerCode,
+                options.transactionSequenceNumber || ZclTransactionSequenceNumber.next(),
+                command.ID, cluster.ID, payload, options.reservedBits
+            );
+            await Entity.adapter.sendZclFrameToGroup(groupId, frame, options.srcEndpoint);
+        } catch (error) {
+            const message = `${log} failed (${error})`;
+            debug.error(message);
+            throw Error(message);
+        }
+    }
+
     private getOptionsWithDefaults(
         options: Options, direction: Zcl.Direction
     ): Options {
