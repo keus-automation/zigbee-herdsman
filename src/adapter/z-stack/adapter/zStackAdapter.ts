@@ -36,7 +36,7 @@ interface WaitressMatcher {
     clusterID: number;
     commandIdentifier: number;
     direction: number;
-};
+}
 
 class DataConfirmError extends Error {
     public code: number;
@@ -79,10 +79,16 @@ class ZStackAdapter extends Adapter {
     public async start(): Promise<StartResult> {
         await this.znp.open();
 
-        try {
-            await this.znp.request(Subsystem.SYS, 'ping', {capabilities: 1});
-        } catch (e) {
-            throw new Error(`Failed to connect to the adapter (${e})`);
+        const attempts = 3;
+        for (let i = 0; i < attempts; i++) {
+            try {
+                await this.znp.request(Subsystem.SYS, 'ping', {capabilities: 1});
+                break;
+            } catch (e) {
+                if (attempts - 1 === i) {
+                    throw new Error(`Failed to connect to the adapter (${e})`);
+                }
+            }
         }
 
         // Old firmware did not support version, assume it's Z-Stack 1.2 for now.
@@ -257,22 +263,23 @@ class ZStackAdapter extends Adapter {
     }
 
     public async sendZclFrameToEndpoint(
-        networkAddress: number, endpoint: number, zclFrame: ZclFrame, timeout: number, sourceEndpoint?: number
+        networkAddress: number, endpoint: number, zclFrame: ZclFrame, timeout: number, disableResponse: boolean,
+        sourceEndpoint?: number
     ): Promise<Events.ZclDataPayload> {
         return this.queue.execute<Events.ZclDataPayload>(async () => {
             return this.sendZclFrameToEndpointInternal(
-                networkAddress, endpoint, sourceEndpoint || 1, zclFrame, timeout, true
+                networkAddress, endpoint, sourceEndpoint || 1, zclFrame, timeout, disableResponse, true
             );
         }, networkAddress);
     }
 
     private async sendZclFrameToEndpointInternal(
         networkAddress: number, endpoint: number, sourceEndpoint: number, zclFrame: ZclFrame,
-        timeout: number, firstAttempt: boolean
+        timeout: number, disableResponse: boolean, firstAttempt: boolean
     ): Promise<Events.ZclDataPayload> {
         let response = null;
         const command = zclFrame.getCommand();
-        if (command.hasOwnProperty('response')) {
+        if (command.hasOwnProperty('response') && disableResponse === false) {
             response = this.waitForInternal(
                 networkAddress, endpoint, zclFrame.Header.frameControl.frameType, Direction.SERVER_TO_CLIENT,
                 zclFrame.Header.transactionSequenceNumber, zclFrame.Cluster.ID, command.response, timeout
@@ -307,7 +314,7 @@ class ZStackAdapter extends Adapter {
                     // Timeout could happen because of invalid route, rediscover and retry.
                     await this.discoverRoute(networkAddress);
                     return this.sendZclFrameToEndpointInternal(
-                        networkAddress, endpoint, sourceEndpoint, zclFrame, timeout, false
+                        networkAddress, endpoint, sourceEndpoint, zclFrame, timeout, disableResponse, false
                     );
                 } else {
                     throw error;
@@ -736,7 +743,7 @@ class ZStackAdapter extends Adapter {
         }
 
         return dataConfirm;
-    };
+    }
 
     private async dataRequestExtended(
         addressMode: number, destinationAddressOrGroupID: number | string, destinationEndpoint: number, panID: number,
@@ -782,7 +789,7 @@ class ZStackAdapter extends Adapter {
 
             return dataConfirm;
         }
-    };
+    }
 
     private nextTransactionID(): number {
         this.transactionID++;
