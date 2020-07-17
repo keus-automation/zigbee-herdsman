@@ -27,7 +27,7 @@ interface RoutingTable {
     table: {destinationAddress: number; status: string; nextHop: number}[];
 }
 
-const KEUS_DEVICE_ENDPOINT = 8;
+const KEUS_DEVICE_ENDPOINT = 15;
 
 class Device extends Entity {
     private readonly ID: number;
