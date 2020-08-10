@@ -60,6 +60,7 @@ class Device extends Entity {
     get interviewing(): boolean {return this._interviewing;}
     get lastSeen(): number {return this._lastSeen;}
     get manufacturerID(): number {return this._manufacturerID;}
+    set type(type: DeviceType) {this._type = type;}
     get type(): DeviceType {return this._type;}
     get dateCode(): string {return this._dateCode;}
     set dateCode(dateCode: string) {this._dateCode = dateCode;}
@@ -182,7 +183,8 @@ class Device extends Entity {
             const values: KeyValue = {
                 timeStatus: 3, // Time-master + synchronised
                 time: time,
-                localTime: time - (new Date()).getTimezoneOffset() * 60
+                timeZone: ((new Date()).getTimezoneOffset() * -1) * 60,
+                localTime: time - (new Date()).getTimezoneOffset() * 60,
             };
 
             const cluster = Zcl.Utils.getCluster('genTime');

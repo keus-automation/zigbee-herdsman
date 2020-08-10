@@ -490,13 +490,15 @@ const Cluster: {
     genLevelCtrl: {
         ID: 8,
         attributes: {
-            currentLevel: { ID: 0, type: DataType.uint8 },
-            remainingTime: { ID: 1, type: DataType.uint16 },
-            onOffTransitionTime: { ID: 16, type: DataType.uint16 },
-            onLevel: { ID: 17, type: DataType.uint8 },
-            onTransitionTime: { ID: 18, type: DataType.uint16 },
-            offTransitionTime: { ID: 19, type: DataType.uint16 },
-            defaultMoveRate: { ID: 20, type: DataType.uint16 },
+            currentLevel: {ID: 0, type: DataType.uint8},
+            remainingTime: {ID: 1, type: DataType.uint16},
+            minLevel: {ID: 2, type: DataType.uint8},
+            maxLevel: {ID: 3, type: DataType.uint8},
+            onOffTransitionTime: {ID: 16, type: DataType.uint16},
+            onLevel: {ID: 17, type: DataType.uint8},
+            onTransitionTime: {ID: 18, type: DataType.uint16},
+            offTransitionTime: {ID: 19, type: DataType.uint16},
+            defaultMoveRate: {ID: 20, type: DataType.uint16},
         },
         commands: {
             moveToLevel: {
@@ -2376,6 +2378,7 @@ const Cluster: {
         commands: {
             arm: {
                 ID: 0,
+                response: 0,
                 parameters: [
                     {name: 'armmode', type: DataType.uint8},
                     {name: 'code', type: DataType.charStr},
@@ -2406,17 +2409,20 @@ const Cluster: {
             },
             getZoneIDMap: {
                 ID: 5,
+                response: 1,
                 parameters: [
                 ],
             },
             getZoneInfo: {
                 ID: 6,
+                response: 2,
                 parameters: [
                     { name: 'zoneid', type: DataType.uint8 },
                 ],
             },
             getPanelStatus: {
                 ID: 7,
+                response: 5,
                 parameters: [
                 ],
             },
@@ -2427,6 +2433,7 @@ const Cluster: {
             },
             getZoneStatus: {
                 ID: 9,
+                response: 8,
                 parameters: [
                     { name: 'startzoneid', type: DataType.uint8 },
                     { name: 'maxnumzoneid', type: DataType.uint8 },
@@ -3778,6 +3785,20 @@ const Cluster: {
         manufacturerCode: ManufacturerCode.Centralite,
         attributes: {
             measuredValue: { ID: 0, type: DataType.uint16 },
+        },
+        commands: {},
+        commandsResponse: {},
+    },
+    manuSpecificSamsungAccelerometer: {
+        ID: 0xFC02,
+        manufacturerCode: ManufacturerCode.SmartThings,
+        attributes: {
+            motion_threshold_multiplier: {ID: 0, type: DataType.uint8},
+            motion_threshold: {ID: 2, type: DataType.uint16},
+            acceleration: {ID: 16, type: DataType.bitmap8},
+            x_axis: {ID:18, type: DataType.int16},
+            y_axis: {ID:19, type: DataType.int16},
+            z_axis: {ID:20, type: DataType.int16},
         },
         commands: {},
         commandsResponse: {},
