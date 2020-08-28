@@ -72,6 +72,7 @@ const CommandsLookup: { [s: string]: MessagePayloadType } = {
     'alertsNotification': 'commandAlertsNotification',
     'programmingEventNotification': 'commandProgrammingEventNotification',
     'getPinCodeRsp': 'commandGetPinCodeRsp',
+    'arrivalSensorNotify': 'commandArrivalSensorNotify',
 };
 
 type MessagePayloadType =
@@ -88,7 +89,8 @@ type MessagePayloadType =
     'commandUpOpen' | 'commandDownClose' | 'commandMoveToLevel' | 'commandMoveColorTemp' | 'commandGetData' |
     'commandSetDataResponse' | 'commandGetWeeklyScheduleRsp' | 'commandQueryNextImageRequest' | 'commandNotification' |
     'commandAppMsg' | 'commandAppMsgRsp' | 'commandAppMsgNoRsp' |
-    'commandAlertsNotification' | 'commandProgrammingEventNotification' | "commandGetPinCodeRsp";
+    'commandAlertsNotification' | 'commandProgrammingEventNotification' | "commandGetPinCodeRsp" |
+    "commandArrivalSensorNotify";
 
 interface MessagePayload {
     type: MessagePayloadType;

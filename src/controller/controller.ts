@@ -117,6 +117,7 @@ class Controller extends events.EventEmitter {
         this.adapter.on(AdapterEvents.Events.disconnected, this.onAdapterDisconnected.bind(this));
         this.adapter.on(AdapterEvents.Events.deviceAnnounce, this.onDeviceAnnounce.bind(this));
         this.adapter.on(AdapterEvents.Events.deviceLeave, this.onDeviceLeave.bind(this));
+        this.adapter.on(AdapterEvents.Events.networkAddress, this.onNetworkAddress.bind(this));
 
         if (startResult === 'reset') {
             if (this.options.databaseBackupPath && fs.existsSync(this.options.databasePath)) {
@@ -265,6 +266,13 @@ class Controller extends events.EventEmitter {
     }
 
     /**
+     * Get device by networkAddress
+     */
+    public getDeviceByNetworkAddress(networkAddress: number): Device {
+        return Device.byNetworkAddress(networkAddress);
+    }
+
+    /**
      * Get group by ID
      */
     public getGroupByID(groupID: number): Group {
@@ -305,6 +313,22 @@ class Controller extends events.EventEmitter {
     public async setLED(enabled: boolean): Promise<void> {
         if (!(await this.supportsLED())) throw new Error(`Adapter doesn't support LED`);
         await this.adapter.setLED(enabled);
+    }
+
+    private onNetworkAddress(payload: AdapterEvents.NetworkAddressPayload): void {
+        debug.log(`Network address '${payload.ieeeAddr}'`);
+        const device = Device.byIeeeAddr(payload.ieeeAddr);
+
+        if (!device) {
+            debug.log(`Network address is from unknown device '${payload.ieeeAddr}'`);
+            return;
+        }
+
+        if (device.networkAddress !== payload.networkAddress) {
+            debug.log(`Device '${payload.ieeeAddr}' got new networkAddress '${payload.networkAddress}'`);
+            device.networkAddress = payload.networkAddress;
+            device.save();
+        }
     }
 
     private onDeviceAnnounce(payload: AdapterEvents.DeviceAnnouncePayload): void {

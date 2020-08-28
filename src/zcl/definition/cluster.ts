@@ -2324,6 +2324,16 @@ const Cluster: {
         commands: {},
         commandsResponse: {},
     },
+    msCO2: {
+        ID: 1037,
+        attributes: {
+            measuredValue: {ID: 0, type: DataType.singlePrec},
+            minMeasuredValue: {ID: 1, type: DataType.singlePrec},
+            maxMeasuredValue: {ID: 2, type: DataType.singlePrec},
+        },
+        commands: {},
+        commandsResponse: {},
+    },
     ssIasZone: {
         ID: 1280,
         attributes: {
@@ -3788,6 +3798,18 @@ const Cluster: {
         },
         commands: {},
         commandsResponse: {},
+    },
+    manuSpecificSmartThingsArrivalSensor: {
+        ID: 0xFC01,
+        manufacturerCode: ManufacturerCode.SmartThings,
+        attributes: {},
+        commands: {},
+        commandsResponse: {
+            arrivalSensorNotify: {
+                ID: 1,
+                parameters: [],
+            },
+        },
     },
     manuSpecificSamsungAccelerometer: {
         ID: 0xFC02,
