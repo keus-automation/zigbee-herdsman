@@ -544,6 +544,8 @@ class ZStackAdapter extends Adapter {
                 };
 
                 this.emit(Events.Events.deviceAnnounce, payload);
+            } else if (object.command === 'srcRtgInd') {
+                debug('srcRtgInd', object.payload);
             } else {
                 /* istanbul ignore else */
                 if (object.command === 'leaveInd') {

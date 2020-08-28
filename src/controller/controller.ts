@@ -87,6 +87,10 @@ class Controller extends events.EventEmitter {
         }
     }
 
+    public getZstackAdapter(): Adapter {
+        return this.adapter;
+    }
+
     /**
      * Start the Herdsman controller
      */
