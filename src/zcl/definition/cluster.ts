@@ -3800,7 +3800,7 @@ const Cluster: {
         commandsResponse: {},
     },
     manuSpecificSmartThingsArrivalSensor: {
-        ID: 0xFC01,
+        ID: 0xFC05,
         manufacturerCode: ManufacturerCode.SmartThings,
         attributes: {},
         commands: {},
