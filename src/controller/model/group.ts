@@ -12,7 +12,7 @@ const debug = {
     error: Debug('zigbee-herdsman:controller:group'),
 };
 
-interface Options {
+export interface Options {
     manufacturerCode?: number;
     direction?: Zcl.Direction;
     srcEndpoint?: number;

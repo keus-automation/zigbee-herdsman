@@ -7,14 +7,21 @@ import * as Events from './events';
 import { KeyValue, DeviceType, GreenPowerEvents, GreenPowerDeviceJoinedPayload } from './tstype';
 import Debug from "debug";
 import fs from 'fs';
-import { Utils as ZclUtils, FrameControl } from '../zcl';
+import ZclTransactionSequenceNumber from './helpers/zclTransactionSequenceNumber';
+import {
+    Utils as ZclUtils,
+    FrameControl,
+    ZclFrame,
+    FrameType as ZclFrameType,
+    Direction as ZclDirection
+} from '../zcl';
 import Touchlink from './touchlink';
 import GreenPower from './greenPower';
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore
 import mixin from 'mixin-deep';
-import Group from './model/group';
+import Group, { Options as BroadcastOptions } from './model/group';
 
 interface Options {
     network: AdapterTsType.NetworkOptions;
@@ -595,6 +602,39 @@ class Controller extends events.EventEmitter {
 
         if (this.isZclDataPayload(dataPayload, dataType)) {
             device.onZclData(dataPayload, endpoint);
+        }
+    }
+
+    public async broadcastToNetwork(
+        clusterKey: number | string, commandKey: number | string, payload: KeyValue, endpoint: number, inputOptions?: BroadcastOptions
+    ): Promise<void> {
+        let options: BroadcastOptions = {
+            direction: ZclDirection.CLIENT_TO_SERVER,
+            srcEndpoint: null,
+            reservedBits: 0,
+            manufacturerCode: null,
+            transactionSequenceNumber: null,
+            ...inputOptions
+        };
+
+        const cluster = ZclUtils.getCluster(clusterKey);
+        const command = cluster.getCommand(commandKey);
+
+        const log = `Command Broadcast to Network ${cluster.name}.${command.name}(${JSON.stringify(payload)})`;
+        debug.log(log);
+
+        try {
+            const frame = ZclFrame.create(
+                ZclFrameType.SPECIFIC, options.direction, true, options.manufacturerCode,
+                options.transactionSequenceNumber || ZclTransactionSequenceNumber.next(),
+                command.ID, cluster.ID, payload, options.reservedBits
+            );
+
+            await this.adapter.sendZclFrameToAll(endpoint, frame, inputOptions.srcEndpoint);
+        } catch (error) {
+            const message = `${log} failed (${error})`;
+            debug.error(message);
+            throw Error(message);
         }
     }
 }
