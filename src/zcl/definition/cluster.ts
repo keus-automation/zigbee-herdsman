@@ -253,6 +253,7 @@ const Cluster: {
         commands: {
             add: {
                 ID: 0,
+                response: 0,
                 parameters: [
                     { name: 'groupid', type: DataType.uint16 },
                     { name: 'sceneid', type: DataType.uint8 },
@@ -263,6 +264,7 @@ const Cluster: {
             },
             view: {
                 ID: 1,
+                response: 1,
                 parameters: [
                     { name: 'groupid', type: DataType.uint16 },
                     { name: 'sceneid', type: DataType.uint8 },
@@ -270,6 +272,7 @@ const Cluster: {
             },
             remove: {
                 ID: 2,
+                response: 2,
                 parameters: [
                     { name: 'groupid', type: DataType.uint16 },
                     { name: 'sceneid', type: DataType.uint8 },
@@ -277,12 +280,14 @@ const Cluster: {
             },
             removeAll: {
                 ID: 3,
+                response: 3,
                 parameters: [
                     { name: 'groupid', type: DataType.uint16 },
                 ],
             },
             store: {
                 ID: 4,
+                response: 4,
                 parameters: [
                     { name: 'groupid', type: DataType.uint16 },
                     { name: 'sceneid', type: DataType.uint8 },
@@ -297,12 +302,14 @@ const Cluster: {
             },
             getSceneMembership: {
                 ID: 6,
+                response: 6,
                 parameters: [
                     { name: 'groupid', type: DataType.uint16 },
                 ],
             },
             enhancedAdd: {
                 ID: 64,
+                response: 64,
                 parameters: [
                     { name: 'groupid', type: DataType.uint16 },
                     { name: 'sceneid', type: DataType.uint8 },
@@ -313,6 +320,7 @@ const Cluster: {
             },
             enhancedView: {
                 ID: 65,
+                response: 65,
                 parameters: [
                     { name: 'groupid', type: DataType.uint16 },
                     { name: 'sceneid', type: DataType.uint8 },
@@ -320,6 +328,7 @@ const Cluster: {
             },
             copy: {
                 ID: 66,
+                response: 66,
                 parameters: [
                     { name: 'mode', type: DataType.uint8 },
                     { name: 'groupidfrom', type: DataType.uint16 },
@@ -3700,9 +3709,17 @@ const Cluster: {
         ID: 65281,
         manufacturerCode: ManufacturerCode.Sinope,
         attributes: {
-            outdoorTempToDisplay: { ID: 16, type: DataType.int16 },
-            outdoorTempToDisplayTimeout: { ID: 17, type: DataType.uint16 },
-            currentTimeToDisplay: { ID: 32, type: DataType.uint32 },
+            outdoorTempToDisplay: {ID: 16, type: DataType.int16},
+            outdoorTempToDisplayTimeout: {ID: 17, type: DataType.uint16},
+            currentTimeToDisplay: {ID: 32, type: DataType.uint32},
+            floorControlMode: {ID: 261, type: DataType.enum8},
+            ambiantMaxHeatSetpointLimit: {ID: 264, type: DataType.int16},
+            floorMinHeatSetpointLimit: {ID: 265, type: DataType.int16},
+            floorMaxHeatSetpointLimit: {ID: 266, type: DataType.int16},
+            temperatureSensor: {ID: 267, type: DataType.enum8},
+            floorLimitStatus: {ID: 268, type: DataType.enum8},
+            timeFormatToDisplay: {ID: 276, type: DataType.enum8},
+            GFCiStatus: {ID: 277, type: DataType.enum8},
         },
         commands: {
         },

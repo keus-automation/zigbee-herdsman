@@ -61,6 +61,7 @@ class Endpoint extends Entity {
     private readonly deviceIeeeAddress: string;
     public deviceNetworkAddress: number;
     private _binds: BindInternal[];
+    private meta: KeyValue;
 
     // Getters/setters
     get binds(): Bind[] {
@@ -86,6 +87,7 @@ class Endpoint extends Entity {
     private constructor(
         ID: number, profileID: number, deviceID: number, inputClusters: number[], outputClusters: number[],
         deviceNetworkAddress: number, deviceIeeeAddress: string, clusters: Clusters, binds: BindInternal[],
+        meta: KeyValue,
     ) {
         super();
         this.ID = ID;
@@ -98,6 +100,7 @@ class Endpoint extends Entity {
         this.deviceIeeeAddress = deviceIeeeAddress;
         this.clusters = clusters;
         this._binds = binds;
+        this.meta = meta;
     }
 
     /**
@@ -166,9 +169,10 @@ class Endpoint extends Entity {
             delete entry.attrs;
         }
 
+        const meta = record.meta ? record.meta : {};
         return new Endpoint(
             record.epId, record.profId, record.devId, record.inClusterList, record.outClusterList,
-            deviceNetworkAddress, deviceIeeeAddress, record.clusters, record.binds || [],
+            deviceNetworkAddress, deviceIeeeAddress, record.clusters, record.binds || [], meta
         );
     }
 
@@ -176,7 +180,7 @@ class Endpoint extends Entity {
         return {
             profId: this.profileID, epId: this.ID, devId: this.deviceID,
             inClusterList: this.inputClusters, outClusterList: this.outputClusters, clusters: this.clusters,
-            binds: this._binds,
+            binds: this._binds, meta: this.meta,
         };
     }
 
@@ -186,7 +190,7 @@ class Endpoint extends Entity {
     ): Endpoint {
         return new Endpoint(
             ID, profileID, deviceID, inputClusters, outputClusters, deviceNetworkAddress,
-            deviceIeeeAddress, {}, [],
+            deviceIeeeAddress, {}, [], {},
         );
     }
 
@@ -369,13 +373,17 @@ class Endpoint extends Entity {
                     });
                 }
 
-                this.getDevice().save();
+                this.save();
             }
         } catch (error) {
             error.message = `${log} failed (${error.message})`;
             debug.error(error.message);
             throw error;
         }
+    }
+
+    public save(): void {
+        this.getDevice().save();
     }
 
     public async unbind(clusterKey: number | string, target: Endpoint | Group | number): Promise<void> {
@@ -398,7 +406,7 @@ class Endpoint extends Entity {
             const index = this.binds.findIndex((b) => b.cluster.ID === cluster.ID && b.target === target);
             if (index !== -1) {
                 this._binds.splice(index, 1);
-                this.getDevice().save();
+                this.save();
             }
         } catch (error) {
             error.message = `${log} failed (${error.message})`;
