@@ -408,7 +408,10 @@ class ZStackAdapter extends Adapter {
                 debug('Response timeout (%s:%d,%d)', ieeeAddr, networkAddress, responseAttempt);
                 if (responseAttempt < 1) {
                     // No response could be of invalid route, e.g. when message is send to wrong parent of end device.
-                    await this.discoverRoute(networkAddress);
+                    if (responseAttempt == 2) {
+                        await this.discoverRoute(networkAddress);
+                    }
+
                     return this.sendZclFrameToEndpointInternal(
                         ieeeAddr, networkAddress, endpoint, sourceEndpoint, zclFrame, timeout, disableResponse,
                         responseAttempt + 1, dataRequestAttempt, checkedNetworkAddress, discoveredRoute, assocRemove
@@ -422,9 +425,9 @@ class ZStackAdapter extends Adapter {
         }
     }
 
-    public async sendZclFrameToGroup(groupID: number, zclFrame: ZclFrame, sourceEndpoint?: number): Promise<void> {
-        return this.queue.execute<void>(async () => {
-            await this.dataRequestExtended(
+    public async sendZclFrameToGroup(groupID: number, zclFrame: ZclFrame, sourceEndpoint?: number): Promise<ZpiObject> {
+        return this.queue.execute<ZpiObject>(async () => {
+            let groupRsp = await this.dataRequestExtended(
                 AddressMode.ADDR_GROUP, groupID, 0xFF, 0, sourceEndpoint || 1, zclFrame.Cluster.ID,
                 Constants.AF.DEFAULT_RADIUS, zclFrame.toBuffer(), 3000, true
             );
@@ -435,6 +438,8 @@ class ZStackAdapter extends Adapter {
              * command some time to 'settle' in the network.
              */
             await Wait(200);
+
+            return groupRsp;
         });
     }
 
@@ -863,7 +868,7 @@ class ZStackAdapter extends Adapter {
                      * error. This is because there is too much traffic on the network.
                      * Retry this command once after a cooling down period.
                      */
-                    await Wait(2000);
+                    await Wait(100);
                     return this.dataRequestExtended(
                         addressMode, destinationAddressOrGroupID, destinationEndpoint, panID, sourceEndpoint, clusterID,
                         radius, data, timeout, confirmation, attemptsLeft - 1,
@@ -872,6 +877,8 @@ class ZStackAdapter extends Adapter {
                     throw new DataConfirmError(dataConfirm.payload.status);
                 }
             }
+
+            dataConfirm.payload.retries = attemptsLeft;
 
             return dataConfirm;
         }

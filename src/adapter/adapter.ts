@@ -3,6 +3,7 @@ import {ZclDataPayload} from './events';
 import events from 'events';
 import {ZclFrame, FrameType, Direction} from '../zcl';
 import Debug from "debug";
+import { ZpiObject } from './z-stack/znp';
 
 const debug = Debug("zigbee-herdsman:adapter");
 
@@ -158,7 +159,7 @@ abstract class Adapter extends events.EventEmitter {
         disableResponse: boolean, sourceEndpoint?: number,
     ): Promise<ZclDataPayload>;
 
-    public abstract sendZclFrameToGroup(groupID: number, zclFrame: ZclFrame, sourceEndpoint?: number): Promise<void>;
+    public abstract sendZclFrameToGroup(groupID: number, zclFrame: ZclFrame, sourceEndpoint?: number): Promise<ZpiObject>;
 
     public abstract sendZclFrameToAll(endpoint: number, zclFrame: ZclFrame, sourceEndpoint: number): Promise<void>;
 

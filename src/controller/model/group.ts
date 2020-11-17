@@ -6,6 +6,7 @@ import Endpoint from './endpoint';
 import Device from './device';
 import assert from 'assert';
 import Debug from "debug";
+import { ZpiObject } from 'src/adapter/z-stack/znp';
 
 const debug = {
     info: Debug('zigbee-herdsman:controller:group'),
@@ -201,7 +202,7 @@ class Group extends Entity {
 
     public static async commandStandalone(
         clusterKey: number | string, commandKey: number | string, payload: KeyValue, groupId: number, inputOptions?: Options
-    ): Promise<void> {
+    ): Promise<ZpiObject> {
         let options: Options = {
             direction: Zcl.Direction.CLIENT_TO_SERVER,
             srcEndpoint: null,
@@ -223,7 +224,7 @@ class Group extends Entity {
                 options.transactionSequenceNumber || ZclTransactionSequenceNumber.next(),
                 command.ID, cluster.ID, payload, options.reservedBits
             );
-            await Entity.adapter.sendZclFrameToGroup(groupId, frame, options.srcEndpoint);
+            return await Entity.adapter.sendZclFrameToGroup(groupId, frame, options.srcEndpoint);
         } catch (error) {
             const message = `${log} failed (${error})`;
             debug.error(message);
