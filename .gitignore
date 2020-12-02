@@ -4,3 +4,4 @@ dist/
 .idea
 temp/
 .history/
+package-lock.json
