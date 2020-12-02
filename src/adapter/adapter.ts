@@ -37,58 +37,58 @@ abstract class Adapter extends events.EventEmitter {
     ): Promise<Adapter> {
         // Disable all adapters, only enable Zstack Adapter
 
-        // const {ZStackAdapter} = await import('./z-stack/adapter');
-        // const {DeconzAdapter} = await import('./deconz/adapter');
-        // const {ZiGateAdapter} = await import('./zigate/adapter');
-        // type AdapterImplementation = typeof ZStackAdapter | typeof DeconzAdapter | typeof ZiGateAdapter;
-        type AdapterImplementation = typeof ZStackAdapter;
-        // let adapters: AdapterImplementation[];
-        // const adapterLookup = {zstack: ZStackAdapter, deconz: DeconzAdapter, zigate: ZiGateAdapter};
-        // if (serialPortOptions.adapter) {
-        //     if (adapterLookup.hasOwnProperty(serialPortOptions.adapter)) {
-        //         adapters = [adapterLookup[serialPortOptions.adapter]];
-        //     } else {
-        //         throw new Error(
-        //             `Adapter '${serialPortOptions.adapter}' does not exists, possible ` +
-        //             `options: ${Object.keys(adapterLookup).join(', ')}`
-        //         );
-        //     }
-        // } else {
-        //     adapters = Object.values(adapterLookup);
-        // }
+        const {ZStackAdapter} = await import('./z-stack/adapter');
+        const {DeconzAdapter} = await import('./deconz/adapter');
+        const {ZiGateAdapter} = await import('./zigate/adapter');
+        type AdapterImplementation = typeof ZStackAdapter | typeof DeconzAdapter | typeof ZiGateAdapter;
+        // type AdapterImplementation = typeof ZStackAdapter;
+        let adapters: AdapterImplementation[];
+        const adapterLookup = {zstack: ZStackAdapter, deconz: DeconzAdapter, zigate: ZiGateAdapter};
+        if (serialPortOptions.adapter) {
+            if (adapterLookup.hasOwnProperty(serialPortOptions.adapter)) {
+                adapters = [adapterLookup[serialPortOptions.adapter]];
+            } else {
+                throw new Error(
+                    `Adapter '${serialPortOptions.adapter}' does not exists, possible ` +
+                    `options: ${Object.keys(adapterLookup).join(', ')}`
+                );
+            }
+        } else {
+            adapters = Object.values(adapterLookup);
+        }
 
         // Use ZStackAdapter by default
         let adapter: AdapterImplementation = ZStackAdapter;
         
-        // if (!serialPortOptions.path) {
-        //     debug('No path provided, auto detecting path');
-        //     for (const candidate of adapters) {
-        //         const path = await candidate.autoDetectPath();
-        //         if (path) {
-        //             debug(`Auto detected path '${path}' from adapter '${candidate.name}'`);
-        //             serialPortOptions.path = path;
-        //             adapter = candidate;
-        //             break;
-        //         }
-        //     }
+        if (!serialPortOptions.path) {
+            debug('No path provided, auto detecting path');
+            for (const candidate of adapters) {
+                const path = await candidate.autoDetectPath();
+                if (path) {
+                    debug(`Auto detected path '${path}' from adapter '${candidate.name}'`);
+                    serialPortOptions.path = path;
+                    adapter = candidate;
+                    break;
+                }
+            }
 
-        //     if (!serialPortOptions.path) {
-        //         throw new Error("No path provided and failed to auto detect path");
-        //     }
-        // } else {
-        //     try {
-        //         // Determine adapter to use
-        //         for (const candidate of adapters) {
-        //             if (await candidate.isValidPath(serialPortOptions.path)) {
-        //                 debug(`Path '${serialPortOptions.path}' is valid for '${candidate.name}'`);
-        //                 adapter = candidate;
-        //                 break;
-        //             }
-        //         }
-        //     } catch (error) {
-        //         debug(`Failed to validate path: '${error}'`);
-        //     }
-        // }
+            if (!serialPortOptions.path) {
+                throw new Error("No path provided and failed to auto detect path");
+            }
+        } else {
+            try {
+                // Determine adapter to use
+                for (const candidate of adapters) {
+                    if (await candidate.isValidPath(serialPortOptions.path)) {
+                        debug(`Path '${serialPortOptions.path}' is valid for '${candidate.name}'`);
+                        adapter = candidate;
+                        break;
+                    }
+                }
+            } catch (error) {
+                debug(`Failed to validate path: '${error}'`);
+            }
+        }
 
         return new adapter(networkOptions, serialPortOptions, backupPath, adapterOptions);
     }
