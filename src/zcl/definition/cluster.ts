@@ -439,10 +439,12 @@ const Cluster: {
     genOnOff: {
         ID: 6,
         attributes: {
-            onOff: { ID: 0, type: DataType.boolean },
-            globalSceneCtrl: { ID: 16384, type: DataType.boolean },
-            onTime: { ID: 16385, type: DataType.uint16 },
-            offWaitTime: { ID: 16386, type: DataType.uint16 },
+            onOff: {ID: 0, type: DataType.boolean},
+            globalSceneCtrl: {ID: 16384, type: DataType.boolean},
+            onTime: {ID: 16385, type: DataType.uint16},
+            offWaitTime: {ID: 16386, type: DataType.uint16},
+            startUpOnOff: {ID: 16387, type: DataType.enum8},
+            tuyaBacklightMode: {ID: 0x8001, type: DataType.enum8},
         },
         commands: {
             off: {
@@ -1732,35 +1734,38 @@ const Cluster: {
     closuresWindowCovering: {
         ID: 258,
         attributes: {
-            windowCoveringType: { ID: 0, type: DataType.enum8 },
-            physicalClosedLimitLiftCm: { ID: 1, type: DataType.uint16 },
-            physicalClosedLimitTiltDdegree: { ID: 2, type: DataType.uint16 },
-            currentPositionLiftCm: { ID: 3, type: DataType.uint16 },
-            currentPositionTiltDdegree: { ID: 4, type: DataType.uint16 },
-            numOfActuationsLift: { ID: 5, type: DataType.uint16 },
-            numOfActuationsTilt: { ID: 6, type: DataType.uint16 },
-            configStatus: { ID: 7, type: DataType.bitmap8 },
-            currentPositionLiftPercentage: { ID: 8, type: DataType.uint8 },
-            currentPositionTiltPercentage: { ID: 9, type: DataType.uint8 },
-            operationalStatus: { ID: 10, type: DataType.bitmap8 },
-            installedOpenLimitLiftCm: { ID: 16, type: DataType.uint16 },
-            installedClosedLimitLiftCm: { ID: 17, type: DataType.uint16 },
-            installedOpenLimitTiltDdegree: { ID: 18, type: DataType.uint16 },
-            installedClosedLimitTiltDdegree: { ID: 19, type: DataType.uint16 },
-            velocityLift: { ID: 20, type: DataType.uint16 },
-            accelerationTimeLift: { ID: 21, type: DataType.uint16 },
-            decelerationTimeLift: { ID: 22, type: DataType.uint16 },
-            windowCoveringMode: { ID: 23, type: DataType.bitmap8 },
-            intermediateSetpointsLift: { ID: 24, type: DataType.octetStr },
-            intermediateSetpointsTilt: { ID: 25, type: DataType.octetStr },
-            ubisysTurnaroundGuardTime: { ID: 0x1000, type: DataType.uint8, manufacturerCode: ManufacturerCode.Ubisys },
-            ubisysLiftToTiltTransitionSteps: { ID: 0x1001, type: DataType.uint16, manufacturerCode: ManufacturerCode.Ubisys },
-            ubisysTotalSteps: { ID: 0x1002, type: DataType.uint16, manufacturerCode: ManufacturerCode.Ubisys },
-            ubisysLiftToTiltTransitionSteps2: { ID: 0x1003, type: DataType.uint16, manufacturerCode: ManufacturerCode.Ubisys },
-            ubisysTotalSteps2: { ID: 0x1004, type: DataType.uint16, manufacturerCode: ManufacturerCode.Ubisys },
-            ubisysAdditionalSteps: { ID: 0x1005, type: DataType.uint8, manufacturerCode: ManufacturerCode.Ubisys },
-            ubisysInactivePowerThreshold: { ID: 0x1006, type: DataType.uint16, manufacturerCode: ManufacturerCode.Ubisys },
-            ubisysStartupSteps: { ID: 0x1007, type: DataType.uint16, manufacturerCode: ManufacturerCode.Ubisys },
+            windowCoveringType: {ID: 0, type: DataType.enum8},
+            physicalClosedLimitLiftCm: {ID: 1, type: DataType.uint16},
+            physicalClosedLimitTiltDdegree: {ID: 2, type: DataType.uint16},
+            currentPositionLiftCm: {ID: 3, type: DataType.uint16},
+            currentPositionTiltDdegree: {ID: 4, type: DataType.uint16},
+            numOfActuationsLift: {ID: 5, type: DataType.uint16},
+            numOfActuationsTilt: {ID: 6, type: DataType.uint16},
+            configStatus: {ID: 7, type: DataType.bitmap8},
+            currentPositionLiftPercentage: {ID: 8, type: DataType.uint8},
+            currentPositionTiltPercentage: {ID: 9, type: DataType.uint8},
+            operationalStatus: {ID: 10, type: DataType.bitmap8},
+            installedOpenLimitLiftCm: {ID: 16, type: DataType.uint16},
+            installedClosedLimitLiftCm: {ID: 17, type: DataType.uint16},
+            installedOpenLimitTiltDdegree: {ID: 18, type: DataType.uint16},
+            installedClosedLimitTiltDdegree: {ID: 19, type: DataType.uint16},
+            velocityLift: {ID: 20, type: DataType.uint16},
+            accelerationTimeLift: {ID: 21, type: DataType.uint16},
+            decelerationTimeLift: {ID: 22, type: DataType.uint16},
+            windowCoveringMode: {ID: 23, type: DataType.bitmap8},
+            intermediateSetpointsLift: {ID: 24, type: DataType.octetStr},
+            intermediateSetpointsTilt: {ID: 25, type: DataType.octetStr},
+            ubisysTurnaroundGuardTime: {ID: 0x1000, type: DataType.uint8, manufacturerCode: ManufacturerCode.Ubisys},
+            ubisysLiftToTiltTransitionSteps: {ID: 0x1001, type: DataType.uint16, manufacturerCode: ManufacturerCode.Ubisys},
+            ubisysTotalSteps: {ID: 0x1002, type: DataType.uint16, manufacturerCode: ManufacturerCode.Ubisys},
+            ubisysLiftToTiltTransitionSteps2: {ID: 0x1003, type: DataType.uint16, manufacturerCode: ManufacturerCode.Ubisys},
+            ubisysTotalSteps2: {ID: 0x1004, type: DataType.uint16, manufacturerCode: ManufacturerCode.Ubisys},
+            ubisysAdditionalSteps: {ID: 0x1005, type: DataType.uint8, manufacturerCode: ManufacturerCode.Ubisys},
+            ubisysInactivePowerThreshold: {ID: 0x1006, type: DataType.uint16, manufacturerCode: ManufacturerCode.Ubisys},
+            ubisysStartupSteps: {ID: 0x1007, type: DataType.uint16, manufacturerCode: ManufacturerCode.Ubisys},
+            tuyaMovingState: {ID: 0xf000, type: DataType.enum8},
+            tuyaCalibration: {ID: 0xf001, type: DataType.enum8},
+            tuyaMotorReversal: {ID: 0xf002, type: DataType.enum8},
         },
         commands: {
             upOpen: {
@@ -1991,55 +1996,57 @@ const Cluster: {
     lightingColorCtrl: {
         ID: 768,
         attributes: {
-            currentHue: { ID: 0, type: DataType.uint8 },
-            currentSaturation: { ID: 1, type: DataType.uint8 },
-            remainingTime: { ID: 2, type: DataType.uint16 },
-            currentX: { ID: 3, type: DataType.uint16 },
-            currentY: { ID: 4, type: DataType.uint16 },
-            driftCompensation: { ID: 5, type: DataType.enum8 },
-            compensationText: { ID: 6, type: DataType.charStr },
-            colorTemperature: { ID: 7, type: DataType.uint16 },
-            colorMode: { ID: 8, type: DataType.enum8 },
-            numPrimaries: { ID: 16, type: DataType.uint8 },
-            primary1X: { ID: 17, type: DataType.uint16 },
-            primary1Y: { ID: 18, type: DataType.uint16 },
-            primary1Intensity: { ID: 19, type: DataType.uint8 },
-            primary2X: { ID: 21, type: DataType.uint16 },
-            primary2Y: { ID: 22, type: DataType.uint16 },
-            primary2Intensity: { ID: 23, type: DataType.uint8 },
-            primary3X: { ID: 25, type: DataType.uint16 },
-            primary3Y: { ID: 26, type: DataType.uint16 },
-            primary3Intensity: { ID: 27, type: DataType.uint8 },
-            primary4X: { ID: 32, type: DataType.uint16 },
-            primary4Y: { ID: 33, type: DataType.uint16 },
-            primary4Intensity: { ID: 34, type: DataType.uint8 },
-            primary5X: { ID: 36, type: DataType.uint16 },
-            primary5Y: { ID: 37, type: DataType.uint16 },
-            primary5Intensity: { ID: 38, type: DataType.uint8 },
-            primary6X: { ID: 40, type: DataType.uint16 },
-            primary6Y: { ID: 41, type: DataType.uint16 },
-            primary6Intensity: { ID: 42, type: DataType.uint8 },
-            whitePointX: { ID: 48, type: DataType.uint16 },
-            whitePointY: { ID: 49, type: DataType.uint16 },
-            colorPointRX: { ID: 50, type: DataType.uint16 },
-            colorPointRY: { ID: 51, type: DataType.uint16 },
-            colorPointRIntensity: { ID: 52, type: DataType.uint8 },
-            colorPointGX: { ID: 54, type: DataType.uint16 },
-            colorPointGY: { ID: 55, type: DataType.uint16 },
-            colorPointGIntensity: { ID: 56, type: DataType.uint8 },
-            colorPointBX: { ID: 58, type: DataType.uint16 },
-            colorPointBY: { ID: 59, type: DataType.uint16 },
-            colorPointBIntensity: { ID: 60, type: DataType.uint8 },
-            enhancedCurrentHue: { ID: 16384, type: DataType.uint16 },
-            enhancedColorMode: { ID: 16385, type: DataType.enum8 },
-            colorLoopActive: { ID: 16386, type: DataType.uint8 },
-            colorLoopDirection: { ID: 16387, type: DataType.uint8 },
-            colorLoopTime: { ID: 16388, type: DataType.uint16 },
-            colorLoopStartEnhancedHue: { ID: 16389, type: DataType.uint16 },
-            colorLoopStoredEnhancedHue: { ID: 16390, type: DataType.uint16 },
-            colorCapabilities: { ID: 16394, type: DataType.uint16 },
-            colorTempPhysicalMin: { ID: 16395, type: DataType.uint16 },
-            colorTempPhysicalMax: { ID: 16396, type: DataType.uint16 },
+            currentHue: {ID: 0, type: DataType.uint8},
+            currentSaturation: {ID: 1, type: DataType.uint8},
+            remainingTime: {ID: 2, type: DataType.uint16},
+            currentX: {ID: 3, type: DataType.uint16},
+            currentY: {ID: 4, type: DataType.uint16},
+            driftCompensation: {ID: 5, type: DataType.enum8},
+            compensationText: {ID: 6, type: DataType.charStr},
+            colorTemperature: {ID: 7, type: DataType.uint16},
+            colorMode: {ID: 8, type: DataType.enum8},
+            numPrimaries: {ID: 16, type: DataType.uint8},
+            primary1X: {ID: 17, type: DataType.uint16},
+            primary1Y: {ID: 18, type: DataType.uint16},
+            primary1Intensity: {ID: 19, type: DataType.uint8},
+            primary2X: {ID: 21, type: DataType.uint16},
+            primary2Y: {ID: 22, type: DataType.uint16},
+            primary2Intensity: {ID: 23, type: DataType.uint8},
+            primary3X: {ID: 25, type: DataType.uint16},
+            primary3Y: {ID: 26, type: DataType.uint16},
+            primary3Intensity: {ID: 27, type: DataType.uint8},
+            primary4X: {ID: 32, type: DataType.uint16},
+            primary4Y: {ID: 33, type: DataType.uint16},
+            primary4Intensity: {ID: 34, type: DataType.uint8},
+            primary5X: {ID: 36, type: DataType.uint16},
+            primary5Y: {ID: 37, type: DataType.uint16},
+            primary5Intensity: {ID: 38, type: DataType.uint8},
+            primary6X: {ID: 40, type: DataType.uint16},
+            primary6Y: {ID: 41, type: DataType.uint16},
+            primary6Intensity: {ID: 42, type: DataType.uint8},
+            whitePointX: {ID: 48, type: DataType.uint16},
+            whitePointY: {ID: 49, type: DataType.uint16},
+            colorPointRX: {ID: 50, type: DataType.uint16},
+            colorPointRY: {ID: 51, type: DataType.uint16},
+            colorPointRIntensity: {ID: 52, type: DataType.uint8},
+            colorPointGX: {ID: 54, type: DataType.uint16},
+            colorPointGY: {ID: 55, type: DataType.uint16},
+            colorPointGIntensity: {ID: 56, type: DataType.uint8},
+            colorPointBX: {ID: 58, type: DataType.uint16},
+            colorPointBY: {ID: 59, type: DataType.uint16},
+            colorPointBIntensity: {ID: 60, type: DataType.uint8},
+            enhancedCurrentHue: {ID: 16384, type: DataType.uint16},
+            enhancedColorMode: {ID: 16385, type: DataType.enum8},
+            colorLoopActive: {ID: 16386, type: DataType.uint8},
+            colorLoopDirection: {ID: 16387, type: DataType.uint8},
+            colorLoopTime: {ID: 16388, type: DataType.uint16},
+            colorLoopStartEnhancedHue: {ID: 16389, type: DataType.uint16},
+            colorLoopStoredEnhancedHue: {ID: 16390, type: DataType.uint16},
+            colorCapabilities: {ID: 16394, type: DataType.uint16},
+            colorTempPhysicalMin: {ID: 16395, type: DataType.uint16},
+            colorTempPhysicalMax: {ID: 16396, type: DataType.uint16},
+            tuyaBrightness: {ID: 61441, type: DataType.uint16},
+            tuyaRgbMode: {ID: 61440, type: DataType.uint16},
         },
         commands: {
             moveToHue: {
@@ -2093,6 +2100,15 @@ const Cluster: {
                     { name: 'hue', type: DataType.uint8 },
                     { name: 'saturation', type: DataType.uint8 },
                     { name: 'transtime', type: DataType.uint16 },
+                ],
+            },
+            tuyaMoveToHueAndSaturationBrightness: {
+                ID: 6,
+                parameters: [
+                    {name: 'hue', type: DataType.uint8},
+                    {name: 'saturation', type: DataType.uint8},
+                    {name: 'transtime', type: DataType.uint16},
+                    {name: 'brightness', type: DataType.uint8},
                 ],
             },
             moveToColor: {
@@ -2196,6 +2212,12 @@ const Cluster: {
                     { name: 'maximum', type: DataType.uint16 },
                 ],
             },
+            tuyaRgbMode: {
+                ID: 240,
+                parameters: [
+                    {name: 'enable', type: DataType.uint8},
+                ]
+            },
         },
         commandsResponse: {
         },
@@ -2269,10 +2291,15 @@ const Cluster: {
     msPressureMeasurement: {
         ID: 1027,
         attributes: {
-            measuredValue: { ID: 0, type: DataType.int16 },
-            minMeasuredValue: { ID: 1, type: DataType.int16 },
-            maxMeasuredValue: { ID: 2, type: DataType.int16 },
-            tolerance: { ID: 3, type: DataType.uint16 },
+            measuredValue: {ID: 0, type: DataType.int16},
+            minMeasuredValue: {ID: 1, type: DataType.int16},
+            maxMeasuredValue: {ID: 2, type: DataType.int16},
+            tolerance: {ID: 3, type: DataType.uint16},
+            scaledValue: {ID: 0x0010, type: DataType.int16},
+            minScaledValue: {ID: 0x0011, type: DataType.int16},
+            maxScaledValue: {ID: 0x0012, type: DataType.int16},
+            scaledTolerance: {ID: 0x0013, type: DataType.uint16},
+            scale: {ID: 0x0014, type: DataType.int8},
         },
         commands: {
         },
@@ -2316,6 +2343,19 @@ const Cluster: {
             ultrasonicOToUDelay: { ID: 32, type: DataType.uint16 },
             ultrasonicUToODelay: { ID: 33, type: DataType.uint16 },
             ultrasonicUToOThreshold: { ID: 34, type: DataType.uint8 },
+        },
+        commands: {
+        },
+        commandsResponse: {
+        },
+    },
+    msSoilMoisture: {
+        ID: 1032,
+        attributes: {
+            measuredValue: {ID: 0, type: DataType.uint16},
+            minMeasuredValue: {ID: 1, type: DataType.uint16},
+            maxMeasuredValue: {ID: 2, type: DataType.uint16},
+            tolerance: {ID: 3, type: DataType.uint16},
         },
         commands: {
         },
@@ -3757,7 +3797,7 @@ const Cluster: {
         commands: {},
         commandsResponse: {}
     },
-    manuSpecificTuyaDimmer: {
+    manuSpecificTuya: {
         ID: 0xEF00,  // 61184
         attributes: {
         },
@@ -3765,23 +3805,44 @@ const Cluster: {
             setData: {
                 ID: 0,
                 parameters: [
-                    { name: 'status', type: DataType.uint8 },
-                    { name: 'transid', type: DataType.uint8 },
-                    { name: 'dp', type: DataType.uint16 },
-                    { name: 'fn', type: DataType.uint8 },
-                    { name: 'data', type: BuffaloZclDataType.LIST_UINT8 },
+                    {name: 'status', type: DataType.uint8},
+                    {name: 'transid', type: DataType.uint8},
+                    {name: 'dp', type: DataType.uint8},
+                    {name: 'datatype', type: DataType.uint8},
+                    {name: 'length_hi', type: DataType.uint8},
+                    {name: 'length_lo', type: DataType.uint8},
+                    {name: 'data', type: BuffaloZclDataType.LIST_UINT8},
                 ],
             },
+            // Time sync command (It's transparent beetween MCU and server)
+            // Time request device -> server
+            //   payloadSize = 0
+            // Set time, server -> device
+            //   payloadSize, should be always 8
+            //   payload[0-3] - UTC timestamp (big endian)
+            //   payload[4-7] - Local timestamp (big endian)
+            //
+            // Zigbee payload is very similar to the UART payload which is described here: https://developer.tuya.com/en/docs/iot/device-development/access-mode-mcu/zigbee-general-solution/tuya-zigbee-module-uart-communication-protocol/tuya-zigbee-module-uart-communication-protocol?id=K9ear5khsqoty#title-10-Time%20synchronization
+            //
+            // NOTE: You need to wait for time request before setting it. You can't set time without request.
+            setTime: {
+                ID: 0x24,
+                parameters: [
+                    {name: 'payloadSize', type: DataType.uint16},
+                    {name: 'payload', type: BuffaloZclDataType.LIST_UINT8},
+                ]
+            }
         },
         commandsResponse: {
             getData: {
                 ID: 1,
                 parameters: [
-                    { name: 'status', type: DataType.uint8 },
-                    { name: 'transid', type: DataType.uint8 },
-                    { name: 'dp', type: DataType.uint16 },
-                    { name: 'fn', type: DataType.uint8 },
-                    { name: 'data', type: DataType.octetStr },
+                    {name: 'status', type: DataType.uint8},
+                    {name: 'transid', type: DataType.uint8},
+                    {name: 'dp', type: DataType.uint8},
+                    {name: 'datatype', type: DataType.uint8},
+                    {name: 'fn', type: DataType.uint8},
+                    {name: 'data', type: DataType.octetStr},
                 ],
             },
             // The ZED will respond with the command 0x02 when a change was requested
@@ -3790,13 +3851,21 @@ const Cluster: {
             setDataResponse: {
                 ID: 2,
                 parameters: [
-                    { name: 'status', type: DataType.uint8 },
-                    { name: 'transid', type: DataType.uint8 },
-                    { name: 'dp', type: DataType.uint16 },
-                    { name: 'fn', type: DataType.uint8 },
-                    { name: 'data', type: DataType.octetStr },
+                    {name: 'status', type: DataType.uint8},
+                    {name: 'transid', type: DataType.uint8},
+                    {name: 'dp', type: DataType.uint8},
+                    {name: 'datatype', type: DataType.uint8},
+                    {name: 'fn', type: DataType.uint8},
+                    {name: 'data', type: DataType.octetStr},
                 ],
             },
+            setTimeRequest: {
+                ID: 0x24,
+                parameters: [
+                    {name: 'payloadSize', type: DataType.uint16}, // Should be always 0
+                    {name: 'payload', type: BuffaloZclDataType.LIST_UINT8},
+                ]
+            }
         },
     },
     aqaraOpple: {
@@ -3880,7 +3949,195 @@ const Cluster: {
                 ]
             }
         }
-    }
+    },
+    heimanSpecificPM25Measurement: {
+        // from HS2AQ-3.0海曼智能空气质量检测仪API文档-V01
+        ID: 0x042a,
+        manufacturerCode: ManufacturerCode.Heiman,
+        attributes: {
+            measuredValue: {ID: 0x0000, type: DataType.uint16},
+            measuredMinValue: {ID: 0x0001, type: DataType.uint16},
+            measuredMaxValue: {ID: 0x0002, type: DataType.uint16},
+            measuredTolerance: {ID: 0x0003, type: DataType.uint16},
+        },
+        commands: {},
+        commandsResponse: {},
+    },
+    heimanSpecificFormaldehydeMeasurement: {
+        // from HS2AQ-3.0海曼智能空气质量检测仪API文档-V01
+        ID: 0x042b,
+        manufacturerCode: ManufacturerCode.Heiman,
+        attributes: {
+            measuredValue: {ID: 0x0000, type: DataType.uint16},
+            measuredMinValue: {ID: 0x0001, type: DataType.uint16},
+            measuredMaxValue: {ID: 0x0002, type: DataType.uint16},
+            measuredTolerance: {ID: 0x0003, type: DataType.uint16},
+        },
+        commands: {},
+        commandsResponse: {},
+    },
+    heimanSpecificAirQuality: {
+        // from HS2AQ-3.0海曼智能空气质量检测仪API文档-V01
+        ID: 0xfc81,
+        manufacturerCode: ManufacturerCode.Heiman,
+        attributes: {
+            language: {ID: 0xf000, type: DataType.uint8},
+            unitOfMeasure: {ID: 0xf001, type: DataType.uint8},
+            batteryState: {ID: 0xf002, type: DataType.uint8}, //  (0 is not charged, 1 is charging, 2 is fully charged)
+            pm10measuredValue: {ID: 0xf003, type: DataType.uint16},
+            tvocMeasuredValue: {ID: 0xf004, type: DataType.uint16},
+            aqiMeasuredValue: {ID: 0xf005, type: DataType.uint16},
+            temperatureMeasuredMax: {ID: 0xf006, type: DataType.int16},
+            temperatureMeasuredMin: {ID: 0xf007, type: DataType.int16},
+            humidityMeasuredMax: {ID: 0xf008, type: DataType.uint16},
+            humidityMeasuredMin: {ID: 0xf009, type: DataType.uint16},
+            alarmEnable: {ID: 0xf00a, type: DataType.uint16},
+        },
+        commands: {
+            setLanguage: {
+                ID: 0x011b,
+                parameters: [ // (1: English 0: Chinese)
+                    {name: 'languageCode', type: DataType.uint8},
+                ],
+            },
+            setUnitOfTemperature: {
+                ID: 0x011c,
+                parameters: [ // (0: ℉ 1: ℃)
+                    {name: 'unitsCode', type: DataType.uint8},
+                ],
+            },
+            getTime: {
+                ID: 0x011d,
+                parameters: [
+                ],
+            },
+        },
+        commandsResponse: {
+        },
+    },
+    heimanSpecificScenes: {
+        // from HS2SS-3.0海曼智能情景开关API文档-V01
+        ID: 0xfc80,
+        manufacturerCode: ManufacturerCode.Heiman,
+        attributes: {
+        },
+        commands: {
+            cinema: {
+                ID: 0xf0,
+                parameters: [],
+            },
+            atHome: {
+                ID: 0xf1,
+                parameters: [],
+            },
+            sleep: {
+                ID: 0xf2,
+                parameters: [],
+            },
+            goOut: {
+                ID: 0xf3,
+                parameters: [],
+            },
+            repast: {
+                ID: 0xf4,
+                parameters: [],
+            },
+        },
+        commandsResponse: {
+        },
+    },
+    heimanSpecificInfraRedRemote: {
+        // from HS2IRC-3.0海曼智能红外转发控制器API-V01文档
+        ID: 0xfc82,
+        manufacturerCode: ManufacturerCode.Heiman,
+        attributes: {},
+        commands: {
+            sendKey: {
+                ID: 0xf0,
+                parameters: [
+                    {name: 'id', type: DataType.uint8},
+                    {name: 'keyCode', type: DataType.uint8},
+                ],
+            },
+            studyKey: {
+                // Total we can have 30 keycode for each device ID (1..30).
+                ID: 0xf1,
+                // response: 0xf2,
+                parameters: [
+                    {name: 'id', type: DataType.uint8},
+                    {name: 'keyCode', type: DataType.uint8},
+                ],
+            },
+            deleteKey: {
+                ID: 0xf3,
+                parameters: [
+                    // 1-15 - Delete specific ID, >= 16 - Delete All
+                    {name: 'id', type: DataType.uint8},
+                    // 1-30 - Delete specific keycode, >= 31 - Delete All keycodes for the ID
+                    {name: 'keyCode', type: DataType.uint8},
+                ],
+            },
+            createId: {
+                // Total we can have 15 device IDs (1..15).
+                ID: 0xf4,
+                // response: 0xf5,
+                parameters: [
+                    {name: 'modelType', type: DataType.uint8},
+                ],
+            },
+            getIdAndKeyCodeList: {
+                ID: 0xf6,
+                // response: 0xf7,
+                parameters: [],
+            },
+        },
+        commandsResponse: {
+            studyKeyRsp: {
+                ID: 0xf2,
+                parameters: [
+                    {name: 'id', type: DataType.uint8},
+                    {name: 'keyCode', type: DataType.uint8},
+                    {name: 'result', type: DataType.uint8}, // 0 - success, 1 - fail
+                ],
+            },
+            createIdRsp: {
+                ID: 0xf5,
+                parameters: [
+                    {name: 'id', type: DataType.uint8}, // 0xFF - create failed
+                    {name: 'modelType', type: DataType.uint8},
+                ],
+            },
+            getIdAndKeyCodeListRsp: {
+                ID: 0xf7,
+                parameters: [
+                    {name: 'packetsTotal', type: DataType.uint8},
+                    {name: 'packetNumber', type: DataType.uint8},
+                    {name: 'packetLength', type: DataType.uint8}, // Max length is 70 bytes
+                    // HELP for learnedDevicesList data structure:
+                    //   struct structPacketPayload {
+                    //     uint8_t ID;
+                    //     uint8_t ModeType;
+                    //     uint8_t KeyNum;
+                    //     uint8_t KeyCode[KeyNum];
+                    //   } arayPacketPayload[CurentPacketLenght];
+                    // }
+                    {name: 'learnedDevicesList', type: BuffaloZclDataType.LIST_UINT8},
+                ],
+            },
+        },
+    },
+    develcoSpecificAirQuality: {
+        ID: 0xFC03,
+        manufacturerCode: ManufacturerCode.Develco,
+        attributes: {
+            measuredValue: {ID: 0x0000, type: DataType.uint16},
+            minMeasuredValue: {ID: 0x0001, type: DataType.uint16},
+            maxMeasuredValue: {ID: 0x0002, type: DataType.uint16},
+            resolution: {ID: 0x0003, type: DataType.uint16},
+        },
+        commands: {},
+        commandsResponse: {},
+    },
 };
 
 export default Cluster;

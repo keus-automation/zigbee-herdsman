@@ -74,6 +74,21 @@ const CommandsLookup: { [s: string]: MessagePayloadType } = {
     'programmingEventNotification': 'commandProgrammingEventNotification',
     'getPinCodeRsp': 'commandGetPinCodeRsp',
     'arrivalSensorNotify': 'commandArrivalSensorNotify',
+    'getPanelStatus': 'commandGetPanelStatus',
+
+    // HEIMAN scenes cluster
+    'atHome': 'commandAtHome',
+    'goOut': 'commandGoOut',
+    'cinema': 'commandCinema',
+    'repast': 'commandRepast',
+    'sleep': 'commandSleep',
+
+    // HEIMAN IR remote cluster
+    'studyKeyRsp': 'commandStudyKeyRsp',
+    'createIdRsp': 'commandCreateIdRsp',
+    'getIdAndKeyCodeListRsp': 'commandGetIdAndKeyCodeListRsp',
+
+    'setTimeRequest': 'commandSetTimeRequest', // Tuya time sync
 };
 
 type MessagePayloadType =
@@ -91,7 +106,10 @@ type MessagePayloadType =
     'commandSetDataResponse' | 'commandGetWeeklyScheduleRsp' | 'commandQueryNextImageRequest' | 'commandNotification' |
     'commandAppMsg' | 'commandAppMsgRsp' | 'commandAppMsgNoRsp' |
     'commandAlertsNotification' | 'commandProgrammingEventNotification' | "commandGetPinCodeRsp" |
-    "commandArrivalSensorNotify" | 'commandCommisioningNotification';
+    "commandArrivalSensorNotify" | 'commandCommisioningNotification' |
+    'commandAtHome' | 'commandGoOut' | 'commandCinema' | 'commandRepast' | 'commandSleep' |
+    'commandStudyKeyRsp' | 'commandCreateIdRsp' | 'commandGetIdAndKeyCodeListRsp' | 'commandSetTimeRequest' | 
+    'commandGetPanelStatus';
 
 interface MessagePayload {
     type: MessagePayloadType;

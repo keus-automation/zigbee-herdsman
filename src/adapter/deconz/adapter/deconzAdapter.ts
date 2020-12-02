@@ -48,11 +48,16 @@ class DeconzAdapter extends Adapter {
         const concurrent = this.adapterOptions && this.adapterOptions.concurrent ?
             this.adapterOptions.concurrent : 2;
 
+        // TODO: https://github.com/Koenkk/zigbee2mqtt/issues/4884#issuecomment-728903121
+        const delay = this.adapterOptions && typeof this.adapterOptions.delay === 'number' ?
+            this.adapterOptions.delay : 300;
+
         this.waitress = new Waitress<Events.ZclDataPayload, WaitressMatcher>(
             this.waitressValidator, this.waitressTimeoutFormatter
         );
 
         this.driver = new Driver(serialPortOptions.path);
+        this.driver.setDelay(delay);
         this.driver.on('rxFrame', (frame) => {processFrame(frame)});
         this.queue = new Queue(concurrent);
         this.transactionID = 0;
@@ -160,7 +165,7 @@ class DeconzAdapter extends Adapter {
                 const fw = await this.driver.readFirmwareVersionRequest();
                 const buf = Buffer.from(fw);
                 let fwString = "0x" + buf.readUInt32LE(0).toString(16);
-                const type: string = (fw[1] === 5) ? "RaspBee" : "ConBee2";
+                const type: string = (fw[1] === 5) ? "ConBee/RaspBee" : "ConBee2/RaspBee2";
                 const meta = {"transportrev":0, "product":0, "majorrel": fw[3], "minorrel": fw[2], "maintrel":0, "revision":fwString};
                 this.fwVersion = {type: type, meta: meta};
                 return {type: type, meta: meta};
@@ -518,7 +523,7 @@ class DeconzAdapter extends Adapter {
 
     public async sendZclFrameToEndpoint(
         ieeeAddr: string, networkAddress: number, endpoint: number, zclFrame: ZclFrame, timeout: number,
-        disableResponse: boolean, sourceEndpoint?: number,
+        disableResponse: boolean, disableRecovery: boolean, sourceEndpoint?: number,
     ): Promise<Events.ZclDataPayload> {
         const transactionID = this.nextTransactionID();
         const request: ApsDataRequest = {};
@@ -938,35 +943,35 @@ class DeconzAdapter extends Adapter {
     }
 
     public async restoreChannelInterPAN(): Promise<void> {
-        return Promise.reject();
+        throw new Error("not supported");
     }
 
     public async sendZclFrameInterPANToIeeeAddr(zclFrame: ZclFrame, ieeeAddr: string): Promise<void> {
-        return Promise.reject();
+        throw new Error("not supported");
     }
 
     public async sendZclFrameInterPANBroadcast(
         zclFrame: ZclFrame, timeout: number
     ): Promise<Events.ZclDataPayload> {
-        return Promise.reject();
+        throw new Error("not supported");
     }
 
     public async sendZclFrameInterPANBroadcastWithResponse(
         zclFrame: ZclFrame, timeout: number
     ): Promise<Events.ZclDataPayload> {
-        return Promise.reject();
+        throw new Error("not supported");
     }
 
     public async setChannelInterPAN(channel: number): Promise<void> {
-        return Promise.reject();
+        throw new Error("not supported");
     }
 
     public async setTransmitPower(value: number): Promise<void> {
-        return Promise.reject();
+        throw new Error("not supported");
     }
 
     public async sendZclFrameInterPANIeeeAddr(zclFrame: ZclFrame, ieeeAddr: any): Promise<void> {
-        return Promise.reject();
+        throw new Error("not supported");
     }
 
     /**
@@ -1009,12 +1014,15 @@ class DeconzAdapter extends Adapter {
     private checkReceivedDataPayload(resp: ReceivedDataResponse) {
         let srcAddr: any = null;
         let frame: ZclFrame = null;
+
         if (resp != null) {
             srcAddr = (resp.srcAddr16 != null) ? resp.srcAddr16 : resp.srcAddr64;
-            try {
-                frame = ZclFrame.fromBuffer(resp.clusterId, Buffer.from(resp.asduPayload));
-            } catch (error) {
-                debug("could not parse zclFrame: " + error);
+            if (resp.profileId != 0x00) {
+                try {
+                    frame = ZclFrame.fromBuffer(resp.clusterId, Buffer.from(resp.asduPayload));
+                } catch (error) {
+                    debug("could not parse zclFrame: " + error);
+                }
             }
         }
 

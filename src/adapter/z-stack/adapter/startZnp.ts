@@ -46,7 +46,10 @@ const Endpoints = [
         appprofid: 0x0104,
         appdeviceid: 0x0400,
         appnumoutclusters: 2,
-        appoutclusterlist: [Zcl.Utils.getCluster('ssIasZone').ID, Zcl.Utils.getCluster('ssIasWd').ID]
+        appoutclusterlist: [Zcl.Utils.getCluster('ssIasZone').ID, Zcl.Utils.getCluster('ssIasWd').ID],
+        appnuminclusters: 1,
+        appinclusterlist: [Zcl.Utils.getCluster('ssIasAce').ID]
+
     },
     // TERNCY: https://github.com/Koenkk/zigbee-herdsman/issues/82
     {...EndpointDefaults, endpoint: 0x6E, appprofid: 0x0104},
@@ -192,7 +195,7 @@ async function initialise(znp: Znp, version: ZnpVersion, options: TsType.Network
         await znp.request(Subsystem.APP_CNF, 'bdbStartCommissioning', {mode: 0x02});
     } else {
         await znp.request(Subsystem.SAPI, 'writeConfiguration', Items.networkKey(options.networkKey));
-        await znp.request(Subsystem.SYS, 'osalNvWrite', Items.tcLinkKey());
+        await znp.request(Subsystem.SYS, 'osalNvWrite', Items.tcLinkKey12());
     }
 
     // expect status code NV_ITEM_UNINIT (= item created and initialized)

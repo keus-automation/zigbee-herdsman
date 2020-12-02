@@ -29,6 +29,7 @@ interface Options {
     srcEndpoint?: number;
     reservedBits?: number;
     transactionSequenceNumber?: number;
+    disableRecovery?: boolean;
 }
 
 interface Clusters {
@@ -254,7 +255,7 @@ class Endpoint extends Entity {
             );
             const result = await Entity.adapter.sendZclFrameToEndpoint(
                 this.deviceIeeeAddress, this.deviceNetworkAddress, this.ID, frame, options.timeout,
-                options.disableResponse, options.srcEndpoint,
+                options.disableResponse, options.disableRecovery, options.srcEndpoint,
             );
 
             if (!options.disableResponse) {
@@ -290,7 +291,7 @@ class Endpoint extends Entity {
         try {
             const result = await Entity.adapter.sendZclFrameToEndpoint(
                 this.deviceIeeeAddress, this.deviceNetworkAddress, this.ID, frame, options.timeout,
-                options.disableResponse, options.srcEndpoint,
+                options.disableResponse, options.disableRecovery, options.srcEndpoint,
             );
 
             if (!options.disableResponse) {
@@ -336,7 +337,7 @@ class Endpoint extends Entity {
         try {
             await Entity.adapter.sendZclFrameToEndpoint(
                 this.deviceIeeeAddress, this.deviceNetworkAddress, this.ID, frame, options.timeout,
-                options.disableResponse, options.srcEndpoint
+                options.disableResponse, options.disableRecovery, options.srcEndpoint
             );
         } catch (error) {
             error.message = `${log} failed (${error.message})`;
@@ -345,12 +346,34 @@ class Endpoint extends Entity {
         }
     }
 
+    public addBinding(clusterKey: number | string, target: Endpoint | Group | number): void {
+        const cluster = Zcl.Utils.getCluster(clusterKey);
+        if (typeof target === 'number') {
+            target = Group.byGroupID(target) || Group.create(target);
+        }
+
+        if (!this.binds.find((b) => b.cluster.ID === cluster.ID && b.target === target)) {
+            if (target instanceof Group) {
+                this._binds.push({cluster: cluster.ID, groupID: target.groupID, type: 'group'});
+            } else {
+                this._binds.push({
+                    cluster: cluster.ID, type: 'endpoint', deviceIeeeAddress: target.deviceIeeeAddress,
+                    endpointID: target.ID
+                });
+            }
+
+            this.save();
+        }
+    }
+
     public async bind(clusterKey: number | string, target: Endpoint | Group | number): Promise<void> {
         const cluster = Zcl.Utils.getCluster(clusterKey);
         const type = target instanceof Endpoint ? 'endpoint' : 'group';
+        if (typeof target === 'number') {
+            target = Group.byGroupID(target) || Group.create(target);
+        }
 
-        const destinationAddress =
-            target instanceof Endpoint ? target.deviceIeeeAddress : (target instanceof Group ? target.groupID : target);
+        const destinationAddress = target instanceof Endpoint ? target.deviceIeeeAddress : target.groupID;
 
         const log = `Bind ${this.deviceIeeeAddress}/${this.ID} ${cluster.name} from ` +
             `'${target instanceof Endpoint ? `${destinationAddress}/${target.ID}` : destinationAddress}'`;
@@ -362,19 +385,7 @@ class Endpoint extends Entity {
                 target instanceof Endpoint ? target.ID : null,
             );
 
-            // NOTE: In case the bind is done by group number, it won't be saved to the database
-            if (!this.binds.find((b) => b.cluster.ID === cluster.ID && b.target === target)) {
-                if (target instanceof Group) {
-                    this._binds.push({cluster: cluster.ID, groupID: target.groupID, type: 'group'});
-                } else if (target instanceof Endpoint) {
-                    this._binds.push({
-                        cluster: cluster.ID, type: 'endpoint', deviceIeeeAddress: target.deviceIeeeAddress,
-                        endpointID: target.ID
-                    });
-                }
-
-                this.save();
-            }
+            this.addBinding(clusterKey, target);
         } catch (error) {
             error.message = `${log} failed (${error.message})`;
             debug.error(error.message);
@@ -402,6 +413,10 @@ class Endpoint extends Entity {
                 this.deviceNetworkAddress, this.deviceIeeeAddress, this.ID, cluster.ID, destinationAddress, type,
                 target instanceof Endpoint ? target.ID : null,
             );
+
+            if (typeof target === 'number' && Group.byGroupID(target)) {
+                target = Group.byGroupID(target);
+            }
 
             const index = this.binds.findIndex((b) => b.cluster.ID === cluster.ID && b.target === target);
             if (index !== -1) {
@@ -433,7 +448,7 @@ class Endpoint extends Entity {
         try {
             await Entity.adapter.sendZclFrameToEndpoint(
                 this.deviceIeeeAddress, this.deviceNetworkAddress, this.ID, frame, options.timeout,
-                options.disableResponse, options.srcEndpoint
+                options.disableResponse, options.disableRecovery, options.srcEndpoint
             );
         } catch (error) {
             error.message = `${log} failed (${error.message})`;
@@ -484,7 +499,7 @@ class Endpoint extends Entity {
         try {
             const result = await Entity.adapter.sendZclFrameToEndpoint(
                 this.deviceIeeeAddress, this.deviceNetworkAddress, this.ID, frame, options.timeout,
-                options.disableResponse, options.srcEndpoint
+                options.disableResponse, options.disableRecovery, options.srcEndpoint
             );
 
             if (!options.disableResponse) {
@@ -518,7 +533,7 @@ class Endpoint extends Entity {
         try {
             const result = await Entity.adapter.sendZclFrameToEndpoint(
                 this.deviceIeeeAddress, this.deviceNetworkAddress, this.ID, frame, options.timeout,
-                options.disableResponse, options.srcEndpoint
+                options.disableResponse, options.disableRecovery, options.srcEndpoint
             );
 
             if (result) {
@@ -553,7 +568,7 @@ class Endpoint extends Entity {
         try {
             await Entity.adapter.sendZclFrameToEndpoint(
                 this.deviceIeeeAddress, this.deviceNetworkAddress, this.ID, frame, options.timeout,
-                options.disableResponse, options.srcEndpoint
+                options.disableResponse, options.disableRecovery, options.srcEndpoint
             );
         } catch (error) {
             error.message = `${log} failed (${error.message})`;
@@ -589,6 +604,7 @@ class Endpoint extends Entity {
         return {
             timeout: 10000,
             disableResponse: false,
+            disableRecovery: false,
             disableDefaultResponse,
             direction,
             srcEndpoint: null,

@@ -3,6 +3,7 @@ import {ZclDataPayload} from './events';
 import events from 'events';
 import {ZclFrame, FrameType, Direction} from '../zcl';
 import Debug from "debug";
+import {ZStackAdapter} from './z-stack/adapter';
 
 const debug = Debug("zigbee-herdsman:adapter");
 
@@ -34,15 +35,15 @@ abstract class Adapter extends events.EventEmitter {
         backupPath: string,
         adapterOptions: TsType.AdapterOptions,
     ): Promise<Adapter> {
-        const {ZStackAdapter} = await import('./z-stack/adapter');
-        // const {DeconzAdapter} = await import('./deconz/adapter');
-        // type AdapterImplementation = typeof ZStackAdapter | typeof DeconzAdapter;
+        // Disable all adapters, only enable Zstack Adapter
 
-        // const adapters: AdapterImplementation[] = [ZStackAdapter, DeconzAdapter];
+        // const {ZStackAdapter} = await import('./z-stack/adapter');
+        // const {DeconzAdapter} = await import('./deconz/adapter');
+        // const {ZiGateAdapter} = await import('./zigate/adapter');
+        // type AdapterImplementation = typeof ZStackAdapter | typeof DeconzAdapter | typeof ZiGateAdapter;
         type AdapterImplementation = typeof ZStackAdapter;
-        const adapters: AdapterImplementation[] = [ZStackAdapter];
         // let adapters: AdapterImplementation[];
-        // const adapterLookup = {zstack: ZStackAdapter, deconz: DeconzAdapter};
+        // const adapterLookup = {zstack: ZStackAdapter, deconz: DeconzAdapter, zigate: ZiGateAdapter};
         // if (serialPortOptions.adapter) {
         //     if (adapterLookup.hasOwnProperty(serialPortOptions.adapter)) {
         //         adapters = [adapterLookup[serialPortOptions.adapter]];
@@ -57,37 +58,37 @@ abstract class Adapter extends events.EventEmitter {
         // }
 
         // Use ZStackAdapter by default
-        let adapter: AdapterImplementation = adapters[0];
+        let adapter: AdapterImplementation = ZStackAdapter;
+        
+        // if (!serialPortOptions.path) {
+        //     debug('No path provided, auto detecting path');
+        //     for (const candidate of adapters) {
+        //         const path = await candidate.autoDetectPath();
+        //         if (path) {
+        //             debug(`Auto detected path '${path}' from adapter '${candidate.name}'`);
+        //             serialPortOptions.path = path;
+        //             adapter = candidate;
+        //             break;
+        //         }
+        //     }
 
-        if (!serialPortOptions.path) {
-            debug('No path provided, auto detecting path');
-            for (const candidate of adapters) {
-                const path = await candidate.autoDetectPath();
-                if (path) {
-                    debug(`Auto detected path '${path}' from adapter '${candidate.name}'`);
-                    serialPortOptions.path = path;
-                    adapter = candidate;
-                    break;
-                }
-            }
-
-            if (!serialPortOptions.path) {
-                throw new Error("No path provided and failed to auto detect path");
-            }
-        } else {
-            try {
-                // Determine adapter to use
-                for (const candidate of adapters) {
-                    if (await candidate.isValidPath(serialPortOptions.path)) {
-                        debug(`Path '${serialPortOptions.path}' is valid for '${candidate.name}'`);
-                        adapter = candidate;
-                        break;
-                    }
-                }
-            } catch (error) {
-                debug(`Failed to validate path: '${error}'`);
-            }
-        }
+        //     if (!serialPortOptions.path) {
+        //         throw new Error("No path provided and failed to auto detect path");
+        //     }
+        // } else {
+        //     try {
+        //         // Determine adapter to use
+        //         for (const candidate of adapters) {
+        //             if (await candidate.isValidPath(serialPortOptions.path)) {
+        //                 debug(`Path '${serialPortOptions.path}' is valid for '${candidate.name}'`);
+        //                 adapter = candidate;
+        //                 break;
+        //             }
+        //         }
+        //     } catch (error) {
+        //         debug(`Failed to validate path: '${error}'`);
+        //     }
+        // }
 
         return new adapter(networkOptions, serialPortOptions, backupPath, adapterOptions);
     }
@@ -155,7 +156,7 @@ abstract class Adapter extends events.EventEmitter {
 
     public abstract sendZclFrameToEndpoint(
         ieeeAddr: string, networkAddress: number, endpoint: number, zclFrame: ZclFrame, timeout: number,
-        disableResponse: boolean, sourceEndpoint?: number,
+        disableResponse: boolean, disableRecovery: boolean, sourceEndpoint?: number,
     ): Promise<ZclDataPayload>;
 
     public abstract sendZclFrameToGroup(groupID: number, zclFrame: ZclFrame, sourceEndpoint?: number): Promise<void>;

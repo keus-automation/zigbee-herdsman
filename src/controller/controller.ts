@@ -71,6 +71,8 @@ class Controller extends events.EventEmitter {
     private permitJoinTimer: any;
     // eslint-disable-next-line
     private backupTimer: any;
+    // eslint-disable-next-line
+    private databaseSaveTimer: any;
     private touchlink: Touchlink;
 
     /**
@@ -91,6 +93,10 @@ class Controller extends events.EventEmitter {
 
         if (!Array.isArray(this.options.network.networkKey) || this.options.network.networkKey.length !== 16) {
             throw new Error(`Network key must be 16 digits long, got ${this.options.network.networkKey.length}.`);
+        }
+
+        if (!Array.isArray(this.options.network.extendedPanID) || this.options.network.extendedPanID.length !== 8) {
+            throw new Error(`ExtendedPanID must be 8 digits long, got ${this.options.network.extendedPanID.length}.`);
         }
     }
 
@@ -163,6 +169,9 @@ class Controller extends events.EventEmitter {
         await this.backup();
         this.backupTimer = setInterval(() => this.backup(), 86400000);
 
+        // Set database save timer to 1 hour.
+        this.databaseSaveTimer = setInterval(() => this.databaseSave(), 3600000);
+
         this.touchlink = new Touchlink(this.adapter);
     }
 
@@ -220,13 +229,7 @@ class Controller extends events.EventEmitter {
     }
 
     public async stop(): Promise<void> {
-        for (const device of Device.all()) {
-            device.save();
-        }
-
-        for (const group of Group.all()) {
-            group.save();
-        }
+        this.databaseSave();
 
         // Unregister adapter events
         this.adapter.removeAllListeners(AdapterEvents.Events.deviceJoined);
@@ -238,8 +241,19 @@ class Controller extends events.EventEmitter {
 
         await this.permitJoin(false);
         clearInterval(this.backupTimer);
+        clearInterval(this.databaseSaveTimer);
         await this.backup();
         await this.adapter.stop();
+    }
+
+    private databaseSave(): void {
+        for (const device of Device.all()) {
+            device.save();
+        }
+
+        for (const group of Group.all()) {
+            group.save();
+        }
     }
 
     private async backup(): Promise<void> {
@@ -441,7 +455,7 @@ class Controller extends events.EventEmitter {
             debug.log(`New device '${payload.ieeeAddr}' joined`);
             debug.log(`Creating device '${payload.ieeeAddr}'`);
             device = Device.create(
-                undefined, payload.ieeeAddr, payload.networkAddress, undefined,
+                'Unknown', payload.ieeeAddr, payload.networkAddress, undefined,
                 undefined, undefined, undefined, false, []
             );
 
@@ -521,6 +535,7 @@ class Controller extends events.EventEmitter {
         }
 
         device.updateLastSeen();
+        device.linkquality = dataPayload.linkquality;
 
         let endpoint = device.getEndpoint(dataPayload.endpoint);
         if (!endpoint) {
