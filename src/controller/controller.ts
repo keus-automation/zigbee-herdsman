@@ -68,12 +68,15 @@ class Controller extends events.EventEmitter {
     private adapter: Adapter;
     private greenPower: GreenPower;
     // eslint-disable-next-line
+    private permitJoinNetworkClosedTimer: any;
+    // eslint-disable-next-line
     private permitJoinTimer: any;
     // eslint-disable-next-line
     private backupTimer: any;
     // eslint-disable-next-line
     private databaseSaveTimer: any;
     private touchlink: Touchlink;
+    private stopping: boolean;
 
     /**
      * Create a controller
@@ -82,6 +85,7 @@ class Controller extends events.EventEmitter {
      */
     public constructor(options: Options) {
         super();
+        this.stopping = false;
         this.options = mixin(JSON.parse(JSON.stringify(DefaultOptions)), options);
 
         // Validate options
@@ -97,6 +101,11 @@ class Controller extends events.EventEmitter {
 
         if (!Array.isArray(this.options.network.extendedPanID) || this.options.network.extendedPanID.length !== 8) {
             throw new Error(`ExtendedPanID must be 8 digits long, got ${this.options.network.extendedPanID.length}.`);
+        }
+
+        if (this.options.network.panID >= 0xFFFF || this.options.network.panID <= 0) {
+            throw new Error(`PanID must have a value of 0x0001 (1) - 0xFFFE (65534), ` +
+                `got ${this.options.network.panID}.`);
         }
     }
 
@@ -198,37 +207,53 @@ class Controller extends events.EventEmitter {
         }
     }
 
-    public async permitJoin(permit: boolean, device?: Device): Promise<void> {
-        if (permit && !this.getPermitJoin()) {
-            debug.log('Permit joining');
+    public async permitJoin(permit: boolean, device?: Device, time?: number): Promise<void> {
+        await this.permitJoinInternal(permit, 'manual', device, time);
+    }
+
+    public async permitJoinInternal(
+        permit: boolean, reason: 'manual' | 'timer_expired', device?: Device, time?: number, ): Promise<void> {
+        if (permit) {
             await this.adapter.permitJoin(254, !device ? null : device.networkAddress);
             await this.greenPower.permitJoin(254);
 
             // Zigbee 3 networks automatically close after max 255 seconds, keep network open.
-            this.permitJoinTimer = setInterval(async (): Promise<void> => {
-                debug.log('Permit joining');
+            clearInterval(this.permitJoinNetworkClosedTimer);
+            this.permitJoinNetworkClosedTimer = setInterval(async (): Promise<void> => {
                 await this.adapter.permitJoin(254, !device ? null : device.networkAddress);
                 await this.greenPower.permitJoin(254);
             }, 200 * 1000);
-        } else if (permit && this.getPermitJoin()) {
-            debug.log('Joining already permitted');
+
+            if (typeof time === 'number') {
+                this.permitJoinTimer = setTimeout(async (): Promise<void> => {
+                    await this.permitJoinInternal(false, 'timer_expired');
+                }, time * 1000);
+            }
+
+            const data: Events.PermitJoinChangedPayload = {permitted: true, reason};
+            this.emit(Events.Events.permitJoinChanged, data);
         } else {
             debug.log('Disable joining');
             await this.greenPower.permitJoin(0);
             await this.adapter.permitJoin(0, null);
-
-            if (this.permitJoinTimer) {
-                clearInterval(this.permitJoinTimer);
-                this.permitJoinTimer = null;
-            }
+            clearTimeout(this.permitJoinTimer);
+            clearInterval(this.permitJoinNetworkClosedTimer);
+            this.permitJoinNetworkClosedTimer = null;
+            const data: Events.PermitJoinChangedPayload = {permitted: false, reason};
+            this.emit(Events.Events.permitJoinChanged, data);
         }
     }
 
     public getPermitJoin(): boolean {
-        return this.permitJoinTimer != null;
+        return this.permitJoinNetworkClosedTimer != null;
+    }
+
+    public isStopping(): boolean {
+        return this.stopping;
     }
 
     public async stop(): Promise<void> {
+        this.stopping = true;
         this.databaseSave();
 
         // Unregister adapter events
@@ -239,7 +264,7 @@ class Controller extends events.EventEmitter {
         this.adapter.removeAllListeners(AdapterEvents.Events.deviceAnnounce);
         this.adapter.removeAllListeners(AdapterEvents.Events.deviceLeave);
 
-        await this.permitJoin(false);
+        await this.permitJoinInternal(false, 'manual');
         clearInterval(this.backupTimer);
         clearInterval(this.databaseSaveTimer);
         await this.backup();

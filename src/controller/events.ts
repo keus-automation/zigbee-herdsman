@@ -9,6 +9,7 @@ enum Events {
     deviceInterview = "deviceInterview",
     deviceAnnounce = "deviceAnnounce",
     deviceLeave = "deviceLeave",
+    permitJoinChanged = "permitJoinChanged",
 }
 
 interface DeviceJoinedPayload {
@@ -33,7 +34,11 @@ interface DeviceLeavePayload {
     ieeeAddr: string;
 }
 
-const CommandsLookup: { [s: string]: MessagePayloadType } = {
+interface PermitJoinChangedPayload {
+    permitted: boolean, reason: 'timer_expired' | 'manual'
+}
+
+const CommandsLookup: {[s: string]: MessagePayloadType} = {
     'notification': 'commandNotification',
     'commisioningNotification': 'commandCommisioningNotification',
     'on': 'commandOn',
@@ -43,6 +48,8 @@ const CommandsLookup: { [s: string]: MessagePayloadType } = {
     'hueNotification': 'commandHueNotification',
     'off': 'commandOff',
     'stepColorTemp': 'commandStepColorTemp',
+    'stepHue': 'commandStepHue',
+    'stepSaturation': 'commandStepSaturation',
     'moveWithOnOff': 'commandMoveWithOnOff',
     'move': 'commandMove',
     'moveColorTemp': 'commandMoveColorTemp',
@@ -102,7 +109,8 @@ type MessagePayloadType =
     'attributeReport' | 'readResponse' | 'raw' | 'read' | 'write' |
     // Specific
     'commandOn' | 'commandOffWithEffect' | 'commandStep' | 'commandStop' | 'commandHueNotification' |
-    'commandOff' | 'commandStepColorTemp' | 'commandMoveWithOnOff' | 'commandMove' | 'commandMoveHue' |
+    'commandOff' | 'commandStepColorTemp' | 'commandMoveWithOnOff' |
+    'commandMove' | 'commandMoveHue' | 'commandStepHue' | 'commandStepSaturation' |
     'commandMoveToSaturation' | 'commandStopWithOnOff' | 'commandMoveToLevelWithOnOff' | 'commandToggle' |
     'commandTradfriArrowSingle' | 'commandTradfriArrowHold' | 'commandTradfriArrowRelease' |
     'commandStepWithOnOff' | 'commandMoveToColorTemp' | 'commandMoveToColor' | 'commandOnWithTimedOff' |
@@ -114,7 +122,7 @@ type MessagePayloadType =
     'commandAlertsNotification' | 'commandProgrammingEventNotification' | "commandGetPinCodeRsp" |
     "commandArrivalSensorNotify" | 'commandCommisioningNotification' |
     'commandAtHome' | 'commandGoOut' | 'commandCinema' | 'commandRepast' | 'commandSleep' |
-    'commandStudyKeyRsp' | 'commandCreateIdRsp' | 'commandGetIdAndKeyCodeListRsp' | 'commandSetTimeRequest' | 
+    'commandStudyKeyRsp' | 'commandCreateIdRsp' | 'commandGetIdAndKeyCodeListRsp' | 'commandSetTimeRequest' |
     'commandGetPanelStatus';
 
 interface MessagePayload {
@@ -132,5 +140,6 @@ interface MessagePayload {
 
 export {
     Events, MessagePayload, MessagePayloadType, CommandsLookup, DeviceInterviewPayload, DeviceAnnouncePayload,
-    DeviceLeavePayload, DeviceJoinedPayload, DeviceRejoinedPayload
+    DeviceLeavePayload, DeviceJoinedPayload, PermitJoinChangedPayload,
+    DeviceRejoinedPayload
 };

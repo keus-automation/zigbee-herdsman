@@ -445,6 +445,7 @@ const Cluster: {
             offWaitTime: {ID: 16386, type: DataType.uint16},
             startUpOnOff: {ID: 16387, type: DataType.enum8},
             tuyaBacklightMode: {ID: 0x8001, type: DataType.enum8},
+            moesStartUpOnOff: {ID: 0x8002, type: DataType.enum8},
         },
         commands: {
             off: {
@@ -510,6 +511,7 @@ const Cluster: {
             onTransitionTime: {ID: 18, type: DataType.uint16},
             offTransitionTime: {ID: 19, type: DataType.uint16},
             defaultMoveRate: {ID: 20, type: DataType.uint16},
+            startUpCurrentLevel: {ID: 16384, type: DataType.uint8},
         },
         commands: {
             moveToLevel: {
@@ -2045,6 +2047,8 @@ const Cluster: {
             colorCapabilities: {ID: 16394, type: DataType.uint16},
             colorTempPhysicalMin: {ID: 16395, type: DataType.uint16},
             colorTempPhysicalMax: {ID: 16396, type: DataType.uint16},
+            coupleColorTempToLevelMin: {ID: 16397, type: DataType.uint16},
+            startUpColorTemperature: {ID: 16400, type: DataType.uint16},
             tuyaBrightness: {ID: 61441, type: DataType.uint16},
             tuyaRgbMode: {ID: 61440, type: DataType.uint16},
         },
@@ -3778,6 +3782,19 @@ const Cluster: {
         commandsResponse: {
         }
     },
+    manuSpecificUbisysDimmerSetup: {
+        ID: 0xfc01,
+        manufacturerCode: ManufacturerCode.Ubisys,
+        attributes: {
+            capabilities: {ID: 0x0000, type: DataType.bitmap8},
+            status: {ID: 0x0001, type: DataType.bitmap8},
+            mode: {ID: 0x0002, type: DataType.bitmap8},
+        },
+        commands: {
+        },
+        commandsResponse: {
+        }
+    },
     manuSpecificLegrandDevices: {
         ID: 0xfc01,
         manufacturerCode: ManufacturerCode.LegrandNetatmo,
@@ -3804,6 +3821,18 @@ const Cluster: {
         commands: {
             setData: {
                 ID: 0,
+                parameters: [
+                    {name: 'status', type: DataType.uint8},
+                    {name: 'transid', type: DataType.uint8},
+                    {name: 'dp', type: DataType.uint8},
+                    {name: 'datatype', type: DataType.uint8},
+                    {name: 'length_hi', type: DataType.uint8},
+                    {name: 'length_lo', type: DataType.uint8},
+                    {name: 'data', type: BuffaloZclDataType.LIST_UINT8},
+                ],
+            },
+            sendData: {
+                ID: 4,
                 parameters: [
                     {name: 'status', type: DataType.uint8},
                     {name: 'transid', type: DataType.uint8},
@@ -3870,8 +3899,10 @@ const Cluster: {
     },
     aqaraOpple: {
         ID: 0xFCC0,
+        manufacturerCode: ManufacturerCode.LUMI_UNITED_TECH,
         attributes: {
-            mode: { ID: 9, type: DataType.uint8 },
+            mode: {ID: 9, type: DataType.uint8},
+            illuminance: {ID: 0x0112, type: DataType.uint32}
         },
         commands: {},
         commandsResponse: {}

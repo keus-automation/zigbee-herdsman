@@ -50,6 +50,7 @@ class Device extends Entity {
     private _zclVersion?: number;
     private _keusDevice?: boolean;
     private _linkquality?: number;
+    private _skipDefaultResponse: boolean;
 
     // Getters/setters
     get ieeeAddr(): string {return this._ieeeAddr;}
@@ -92,6 +93,8 @@ class Device extends Entity {
     set keusDevice(keusDevice) {this._keusDevice = keusDevice};
     get linkquality(): number {return this._linkquality;}
     set linkquality(linkquality: number) {this._linkquality = linkquality;}
+    get skipDefaultResponse(): boolean {return this._skipDefaultResponse;}
+    set skipDefaultResponse(skipDefaultResponse: boolean) {this._skipDefaultResponse = skipDefaultResponse;}
 
     private meta: KeyValue;
 
@@ -140,6 +143,7 @@ class Device extends Entity {
         this._softwareBuildID = softwareBuildID;
         this._interviewCompleted = interviewCompleted;
         this._interviewing = false;
+        this._skipDefaultResponse = false;
         this.meta = meta;
         this._lastSeen = lastSeen;
     }
@@ -210,7 +214,8 @@ class Device extends Entity {
         // Send a default response if necessary.
         const isDefaultResponse = frame.isGlobal() && frame.getCommand().name === 'defaultRsp';
         const commandHasResponse = frame.getCommand().hasOwnProperty('response');
-        if (!frame.Header.frameControl.disableDefaultResponse && !isDefaultResponse && !commandHasResponse) {
+        const disableDefaultResponse = frame.Header.frameControl.disableDefaultResponse;
+        if (!disableDefaultResponse && !isDefaultResponse && !commandHasResponse && !this._skipDefaultResponse) {
             try {
                 await endpoint.defaultResponse(
                     frame.getCommand().ID, 0, frame.Cluster.ID, frame.Header.transactionSequenceNumber,
@@ -462,6 +467,13 @@ class Device extends Entity {
             }
         } else {
             this._keusDevice = false;
+        }
+
+        if (this.manufacturerID === 4619 && this._type === 'EndDevice') {
+            // Give TuYa end device some time to pair. Otherwise they leave immediately.
+            // https://github.com/Koenkk/zigbee2mqtt/issues/5814
+            debug.log("Detected TuYa end device, waiting 10 seconds...");
+            await Wait(10000);
         }
 
         // e.g. Xiaomi Aqara Opple devices fail to respond to the first active endpoints request, therefore try 2 times

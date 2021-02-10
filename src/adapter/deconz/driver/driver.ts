@@ -63,9 +63,10 @@ class Driver extends events.EventEmitter {
     private configChanged: number;
     private portType: 'serial' | 'socket';
     private socketPort: net.Socket;
+    private DELAY: number;
     private READY_TO_SEND_TIMEOUT: number;
     private HANDLE_DEVICE_STATUS_DELAY: number;
-    private PROCESS_APS_QUEUES_DELAY: number;
+    private PROCESS_QUEUES: number;
 
     public constructor(path: string) {
         super();
@@ -79,16 +80,17 @@ class Driver extends events.EventEmitter {
         this.apsDataConfirm = 0;
         this.apsDataIndication = 0;
         this.configChanged = 0;
-        this.READY_TO_SEND_TIMEOUT = 300;
-        this.HANDLE_DEVICE_STATUS_DELAY = 100;
-        this.PROCESS_APS_QUEUES_DELAY = 100;
+        this.DELAY = 0;
+        this.READY_TO_SEND_TIMEOUT = 1;
+        this.HANDLE_DEVICE_STATUS_DELAY = 5;
+        this.PROCESS_QUEUES = 5;
 
         const that = this;
-        setInterval(() => { that.processQueue(); }, 100);  // fire non aps requests
-        setInterval(() => { that.processBusyQueue(); }, 1000); // check timeouts for non aps requests
-        setInterval(() => { that.processApsQueue(); }, this.PROCESS_APS_QUEUES_DELAY);  // fire aps request
-        setInterval(() => { that.processApsBusyQueue(); }, 1000);  // check timeouts for all open aps requests
-        setInterval(() => { that.processApsConfirmIndQueue(); }, this.PROCESS_APS_QUEUES_DELAY);  // fire aps indications and confirms
+        setInterval(() => { that.processQueue(); }, this.PROCESS_QUEUES);  // fire non aps requests
+        setInterval(() => { that.processBusyQueue(); }, this.PROCESS_QUEUES); // check timeouts for non aps requests
+        setInterval(() => { that.processApsQueue(); }, this.PROCESS_QUEUES);  // fire aps request
+        setInterval(() => { that.processApsBusyQueue(); }, this.PROCESS_QUEUES);  // check timeouts for all open aps requests
+        setInterval(() => { that.processApsConfirmIndQueue(); }, this.PROCESS_QUEUES);  // fire aps indications and confirms
         setInterval(() => { that.deviceStateRequest()
                             .then(result => {})
                             .catch(error => {}); }, 10000);
@@ -114,18 +116,27 @@ class Driver extends events.EventEmitter {
     }
 
     public setDelay(delay: number): void {
-		if (delay === 0) {
-			this.HANDLE_DEVICE_STATUS_DELAY = 10;
-			this.PROCESS_APS_QUEUES_DELAY = 50;
-			this.READY_TO_SEND_TIMEOUT = 50;
-		} else if (delay < 50) {
-			this.READY_TO_SEND_TIMEOUT = 50;
-		} else if (delay > 1200) {
-			this.READY_TO_SEND_TIMEOUT = 1200;
-		} else {
-			this.READY_TO_SEND_TIMEOUT = delay;
-		}
-	}
+        debug(`Set delay to ${delay}`);
+        this.DELAY = delay;
+        this.READY_TO_SEND_TIMEOUT = delay;
+        if (this.READY_TO_SEND_TIMEOUT === 0) {
+            this.READY_TO_SEND_TIMEOUT = 1;
+        }
+
+        if (delay > 0 && delay < 50) {
+            this.PROCESS_QUEUES = delay;
+            if (this.PROCESS_QUEUES < 5) {
+                this.PROCESS_QUEUES = 5;
+            }
+            this.HANDLE_DEVICE_STATUS_DELAY = delay;
+            if (this.HANDLE_DEVICE_STATUS_DELAY < 5) {
+                this.HANDLE_DEVICE_STATUS_DELAY = 5;
+            }
+        } else if (delay >= 50) {
+            this.PROCESS_QUEUES = 50;
+            this.HANDLE_DEVICE_STATUS_DELAY = 50;
+        }
+    }
 
     public static async isValidPath(path: string): Promise<boolean> {
         return SerialPortUtils.is(path, autoDetectDefinitions);
@@ -285,7 +296,13 @@ class Driver extends events.EventEmitter {
 
     private sendWriteParameterRequest(parameterId: number, value: parameterT, seqNumber: number) {
         /* command id, sequence number, 0, framelength(U16), payloadlength(U16), parameter id, pameter */
-        const parameterLength = this.getLengthOfParameter(parameterId);
+        let parameterLength = 0;
+        if (parameterId === PARAM.PARAM.STK.Endpoint) {
+            let arrayParameterValue = value as number[];
+            parameterLength = arrayParameterValue.length;
+        } else {
+            parameterLength = this.getLengthOfParameter(parameterId);
+        }
         //debug("SEND WRITE_PARAMETER Request - parameter id: " + parameterId + " value: " + value.toString(16) + " length: " + parameterLength);
 
         const payloadLength = 1 + parameterLength;
@@ -469,7 +486,7 @@ class Driver extends events.EventEmitter {
         });
     }
 
-    private checkDeviceStatus(currentDeviceStatus: number) {
+    private async checkDeviceStatus(currentDeviceStatus: number) {
         const networkState = currentDeviceStatus & 0x03;
         this.apsDataConfirm = (currentDeviceStatus >> 2) & 0x01;
         this.apsDataIndication = (currentDeviceStatus >> 3) & 0x01;
@@ -592,11 +609,19 @@ class Driver extends events.EventEmitter {
         switch (req.commandId) {
             case PARAM.PARAM.APS.DATA_INDICATION:
                 //debug(`read received data request. seqNr: ${req.seqNumber}`);
-                await this.sendReadReceivedDataRequest(req.seqNumber);
+                if (this.DELAY === 0) {
+                    this.sendReadReceivedDataRequest(req.seqNumber);
+                } else {
+                    await this.sendReadReceivedDataRequest(req.seqNumber);
+                }
                 break;
             case PARAM.PARAM.APS.DATA_CONFIRM:
                 //debug(`query send data state request. seqNr: ${req.seqNumber}`);
-                await this.sendQueryDataStateRequest(req.seqNumber);
+                if (this.DELAY === 0) {
+                    this.sendQueryDataStateRequest(req.seqNumber);
+                } else {
+                    await this.sendQueryDataStateRequest(req.seqNumber);
+                }
                 break;
             default:
                 throw new Error("process APS Confirm/Ind queue - unknown command id");
