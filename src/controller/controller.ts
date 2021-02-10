@@ -469,10 +469,16 @@ class Controller extends events.EventEmitter {
             device.networkAddress = payload.networkAddress;
             device.save();
 
+            const eventData: Events.DeviceRejoinedPayload = { device, networkAddressChanged: true };
+            this.emit(Events.Events.deviceRejoined, eventData);
+
             if (device.manufacturerID && device.manufacturerID == 0xAAAA) {
                 device.updateLastSeen();
                 return;
             }
+        } else{
+            const eventData: Events.DeviceRejoinedPayload = { device, networkAddressChanged: true };
+            this.emit(Events.Events.deviceRejoined, eventData);
         }
 
         device.updateLastSeen();

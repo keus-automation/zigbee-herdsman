@@ -5,6 +5,7 @@ enum Events {
     message = "message",
     adapterDisconnected = "adapterDisconnected",
     deviceJoined = "deviceJoined",
+    deviceRejoined = "deviceRejoined",
     deviceInterview = "deviceInterview",
     deviceAnnounce = "deviceAnnounce",
     deviceLeave = "deviceLeave",
@@ -12,6 +13,11 @@ enum Events {
 
 interface DeviceJoinedPayload {
     device: Device;
+}
+
+interface DeviceRejoinedPayload {
+    device: Device;
+    networkAddressChanged: boolean;
 }
 
 interface DeviceInterviewPayload {
@@ -126,5 +132,5 @@ interface MessagePayload {
 
 export {
     Events, MessagePayload, MessagePayloadType, CommandsLookup, DeviceInterviewPayload, DeviceAnnouncePayload,
-    DeviceLeavePayload, DeviceJoinedPayload,
+    DeviceLeavePayload, DeviceJoinedPayload, DeviceRejoinedPayload
 };

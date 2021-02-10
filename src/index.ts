@@ -1,7 +1,7 @@
 import { default as Controller } from './controller/controller';
 import {
-    Events, MessagePayload, MessagePayloadType, CommandsLookup, DeviceInterviewPayload, DeviceAnnouncePayload,
-    DeviceLeavePayload, DeviceJoinedPayload
+    Events, MessagePayload, MessagePayloadType, DeviceInterviewPayload, DeviceAnnouncePayload,
+    DeviceLeavePayload, DeviceJoinedPayload, DeviceRejoinedPayload
 } from './controller/events';
 import * as Zcl from './zcl';
 import Device from './controller/model/device';
@@ -13,7 +13,7 @@ export { Controller };
 export { Zcl };
 export {
     Events, MessagePayload, MessagePayloadType, DeviceInterviewPayload, DeviceAnnouncePayload,
-    DeviceLeavePayload, DeviceJoinedPayload
+    DeviceLeavePayload, DeviceJoinedPayload, DeviceRejoinedPayload
 };
 export { Device };
 export { Group };

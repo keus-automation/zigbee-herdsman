@@ -38,12 +38,12 @@ abstract class Adapter extends events.EventEmitter {
         // Disable all adapters, only enable Zstack Adapter
 
         const {ZStackAdapter} = await import('./z-stack/adapter');
-        const {DeconzAdapter} = await import('./deconz/adapter');
-        const {ZiGateAdapter} = await import('./zigate/adapter');
-        type AdapterImplementation = typeof ZStackAdapter | typeof DeconzAdapter | typeof ZiGateAdapter;
+        // const {DeconzAdapter} = await import('./deconz/adapter');
+        // const {ZiGateAdapter} = await import('./zigate/adapter');
+        type AdapterImplementation = typeof ZStackAdapter;
         // type AdapterImplementation = typeof ZStackAdapter;
         let adapters: AdapterImplementation[];
-        const adapterLookup = {zstack: ZStackAdapter, deconz: DeconzAdapter, zigate: ZiGateAdapter};
+        const adapterLookup = {zstack: ZStackAdapter};
         if (serialPortOptions.adapter) {
             if (adapterLookup.hasOwnProperty(serialPortOptions.adapter)) {
                 adapters = [adapterLookup[serialPortOptions.adapter]];

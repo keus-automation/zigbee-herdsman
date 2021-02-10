@@ -10,7 +10,7 @@ interface SerialPortOptions {
     baudRate?: number;
     rtscts?: boolean;
     path?: string;
-    adapter?: 'zstack' | 'deconz' | 'zigate';
+    adapter?: 'zstack';
 }
 
 interface AdapterOptions {
@@ -62,7 +62,7 @@ interface SimpleDescriptor {
     profileID: number;
     endpointID: number;
     deviceID: number;
-    deviceVersion: number;
+    deviceVersion?: number;
     inputClusters: number[];
     outputClusters: number[];
 }
