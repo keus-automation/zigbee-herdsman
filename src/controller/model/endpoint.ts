@@ -673,7 +673,8 @@ class Endpoint extends Entity {
             direction,
             srcEndpoint: null,
             reservedBits: 0,
-            manufacturerCode: manufacturerCode ? manufacturerCode : null,
+            // manufacturerCode: manufacturerCode ? manufacturerCode : null,
+            manufacturerCode: null,
             transactionSequenceNumber: null,
             writeUndiv: false,
             ...providedOptions

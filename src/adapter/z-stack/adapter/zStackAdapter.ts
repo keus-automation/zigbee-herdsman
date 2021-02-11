@@ -453,17 +453,29 @@ class ZStackAdapter extends Adapter {
                 return result;
             } catch (error) {
                 debug('Response timeout (%s:%d,%d)', ieeeAddr, networkAddress, responseAttempt);
-                if (responseAttempt < 1 && !disableRecovery) {
-                    // No response could be of invalid route, e.g. when message is send to wrong parent of end device.
+                if (responseAttempt === 2) {
                     await this.discoverRoute(networkAddress);
-                    return this.sendZclFrameToEndpointInternal(
-                        ieeeAddr, networkAddress, endpoint, sourceEndpoint, zclFrame, timeout, disableResponse,
-                        disableRecovery, responseAttempt + 1, dataRequestAttempt, checkedNetworkAddress,
-                        discoveredRoute, assocRemove, assocRestore,
-                    );
-                } else {
-                    throw error;
+                } else if (responseAttempt > 3) {
+                    throw new Error('Request timed out');
                 }
+
+                return this.sendZclFrameToEndpointInternal(
+                    ieeeAddr, networkAddress, endpoint, sourceEndpoint, zclFrame, timeout, disableResponse,
+                    disableRecovery, responseAttempt + 1, dataRequestAttempt, checkedNetworkAddress,
+                    discoveredRoute, assocRemove, assocRestore,
+                );
+
+                // if (responseAttempt < 1 && !disableRecovery) {
+                //     // No response could be of invalid route, e.g. when message is send to wrong parent of end device.
+                    
+                //     return this.sendZclFrameToEndpointInternal(
+                //         ieeeAddr, networkAddress, endpoint, sourceEndpoint, zclFrame, timeout, disableResponse,
+                //         disableRecovery, responseAttempt + 1, dataRequestAttempt, checkedNetworkAddress,
+                //         discoveredRoute, assocRemove, assocRestore,
+                //     );
+                // } else {
+                //     throw error;
+                // }
             }
         } else {
             return null;
