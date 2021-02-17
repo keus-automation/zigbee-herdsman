@@ -80,9 +80,16 @@ const CommandsLookup: {[s: string]: MessagePayloadType} = {
     'setDataResponse': 'commandSetDataResponse',
     'getWeeklyScheduleRsp': 'commandGetWeeklyScheduleRsp',
     'queryNextImageRequest': 'commandQueryNextImageRequest',
+
+    // Keus Specific commands
     'appMsg': 'commandAppMsg',
     'appMsgRsp': 'commandAppMsgRsp',
     'appMsgNoRsp': 'commandAppMsgNoRsp',
+
+    // Sensors specific addition of commands
+    'enrollReq': 'commandEnrollReq',
+    'enrollRsp': 'commandEnrollRsp',
+    
     'alertsNotification': 'commandAlertsNotification',
     'programmingEventNotification': 'commandProgrammingEventNotification',
     'getPinCodeRsp': 'commandGetPinCodeRsp',
@@ -119,6 +126,7 @@ type MessagePayloadType =
     'commandUpOpen' | 'commandDownClose' | 'commandMoveToLevel' | 'commandMoveColorTemp' | 'commandGetData' |
     'commandSetDataResponse' | 'commandGetWeeklyScheduleRsp' | 'commandQueryNextImageRequest' | 'commandNotification' |
     'commandAppMsg' | 'commandAppMsgRsp' | 'commandAppMsgNoRsp' |
+    'commandEnrollReq' | 'commandEnrollRsp' |
     'commandAlertsNotification' | 'commandProgrammingEventNotification' | "commandGetPinCodeRsp" |
     "commandArrivalSensorNotify" | 'commandCommisioningNotification' |
     'commandAtHome' | 'commandGoOut' | 'commandCinema' | 'commandRepast' | 'commandSleep' |

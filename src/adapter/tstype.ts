@@ -1,5 +1,5 @@
 interface NetworkOptions {
-    panID: number;
+    panID: number | string;
     extendedPanID?: number[];
     channelList: number[];
     networkKey?: number[];
