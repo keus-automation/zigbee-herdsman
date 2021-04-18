@@ -105,7 +105,7 @@ class Endpoint extends Entity {
 
     get configuredReportings(): ConfiguredReporting[] {
         return this._configuredReportings.map((entry) => {
-            const cluster = Zcl.Utils.getCluster(entry.cluster);
+            const cluster = Zcl.Utils.getCluster(entry.cluster, this.getDevice().manufacturerID);
             let attribute : Zcl.TsType.Attribute;
 
             if (cluster.hasAttribute(entry.attrId)) {
@@ -568,6 +568,35 @@ class Endpoint extends Entity {
             }
 
             this.save();
+        } catch (error) {
+            error.message = `${log} failed (${error.message})`;
+            debug.error(error.message);
+            throw error;
+        }
+    }
+
+    public async writeStructured(clusterKey: number | string, payload: KeyValue, options?: Options): Promise<void> {
+        const cluster = Zcl.Utils.getCluster(clusterKey);
+        options = this.getOptionsWithDefaults(
+            options, true, Zcl.Direction.CLIENT_TO_SERVER, cluster.manufacturerCode);
+
+        const frame = Zcl.ZclFrame.create(
+            Zcl.FrameType.GLOBAL, options.direction, options.disableDefaultResponse,
+            options.manufacturerCode, options.transactionSequenceNumber ?? ZclTransactionSequenceNumber.next(),
+            `writeStructured`, cluster.ID, payload, options.reservedBits
+        );
+
+        const log = `WriteStructured ${this.deviceIeeeAddress}/${this.ID} ` +
+            `${cluster.name}(${JSON.stringify(payload)}, ${JSON.stringify(options)})`;
+        debug.info(log);
+
+        try {
+            await Entity.adapter.sendZclFrameToEndpoint(
+                this.deviceIeeeAddress, this.deviceNetworkAddress, this.ID, frame, options.timeout,
+                options.disableResponse, options.disableRecovery, options.srcEndpoint
+            );
+
+            // TODO: support `writeStructuredResponse`
         } catch (error) {
             error.message = `${log} failed (${error.message})`;
             debug.error(error.message);

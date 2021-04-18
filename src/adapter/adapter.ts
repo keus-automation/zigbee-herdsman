@@ -35,7 +35,12 @@ abstract class Adapter extends events.EventEmitter {
         backupPath: string,
         adapterOptions: TsType.AdapterOptions,
     ): Promise<Adapter> {
-        // Disable all adapters, only enable Zstack Adapter
+        const {ZStackAdapter} = await import('./z-stack/adapter');
+        const {DeconzAdapter} = await import('./deconz/adapter');
+        const {ZiGateAdapter} = await import('./zigate/adapter');
+        const {EZSPAdapter} = await import('./ezsp/adapter');
+        type AdapterImplementation = (typeof ZStackAdapter | typeof DeconzAdapter | typeof ZiGateAdapter 
+            | typeof EZSPAdapter);
 
         const {ZStackAdapter} = await import('./z-stack/adapter');
         // const {DeconzAdapter} = await import('./deconz/adapter');
@@ -43,7 +48,8 @@ abstract class Adapter extends events.EventEmitter {
         type AdapterImplementation = typeof ZStackAdapter;
         // type AdapterImplementation = typeof ZStackAdapter;
         let adapters: AdapterImplementation[];
-        const adapterLookup = {zstack: ZStackAdapter};
+        const adapterLookup = {zstack: ZStackAdapter, deconz: DeconzAdapter, zigate: ZiGateAdapter, 
+            ezsp: EZSPAdapter};
         if (serialPortOptions.adapter) {
             if (adapterLookup.hasOwnProperty(serialPortOptions.adapter)) {
                 adapters = [adapterLookup[serialPortOptions.adapter]];
