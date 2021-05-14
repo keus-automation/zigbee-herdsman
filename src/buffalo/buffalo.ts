@@ -18,11 +18,12 @@ class Buffalo {
         return this.buffer;
     }
 
-    public readEmpty(): Value {
-        return null;
+    public getWritten(): Buffer {
+        return this.buffer.slice(0, this.position);
     }
 
-    public writeEmpty(): void {
+    public isMore(): boolean {
+        return this.position < this.buffer.length;
     }
 
     public writeInt8(value: number): void {
@@ -30,7 +31,7 @@ class Buffalo {
         this.position++;
     }
 
-    public readInt8(): Value {
+    public readInt8(): number {
         const value = this.buffer.readInt8(this.position);
         this.position++;
         return value;
@@ -41,7 +42,7 @@ class Buffalo {
         this.position++;
     }
 
-    public readUInt8(): Value {
+    public readUInt8(): number {
         const value = this.buffer.readUInt8(this.position);
         this.position++;
         return value;
@@ -52,40 +53,29 @@ class Buffalo {
         this.position += 2;
     }
 
-    public readUInt24(): Value {
-        const lsb = this.readUInt16();
-        const msb = this.readUInt8();
-        return (msb * 65536) + lsb;
+    public readUInt24(): number {
+        const value = this.buffer.readUIntLE(this.position, 3);
+        this.position += 3;
+        return value;
     }
 
     public writeUInt24(value: number): void {
-        let temp = Buffer.alloc(4);
-        temp.writeUInt32LE(value, 0);
-        temp = temp.slice(0, 3);
-        this.writeBuffer(temp, 3);
+        this.buffer.writeUIntLE(value, this.position, 3);
+        this.position += 3;
     }
 
-    public readInt24(): Value {
-        const lsb = this.readUInt16();
-        const msb = this.readUInt8();
-        const sign = (msb & 0x80) >> 7;
-        let value = ((msb & 0x7F) * 65536) + lsb;
-
-        if (sign) {
-            value = -(0x7FFFFF - value + 1);
-        }
-
+    public readInt24(): number {
+        const value = this.buffer.readIntLE(this.position, 3);
+        this.position += 3;
         return value;
     }
 
     public writeInt24(value: number): void {
-        let temp = Buffer.alloc(4);
-        temp.writeInt32LE(value, 0);
-        temp = temp.slice(0, 3);
-        this.writeBuffer(temp, 3);
+        this.buffer.writeIntLE(value, this.position, 3);
+        this.position += 3;
     }
 
-    public readUInt16(): Value {
+    public readUInt16(): number {
         const value = this.buffer.readUInt16LE(this.position);
         this.position += 2;
         return value;
@@ -96,7 +86,7 @@ class Buffalo {
         this.position += 2;
     }
 
-    public readInt16(): Value {
+    public readInt16(): number {
         const value = this.buffer.readInt16LE(this.position);
         this.position += 2;
         return value;
@@ -107,7 +97,7 @@ class Buffalo {
         this.position += 4;
     }
 
-    public readUInt32(): Value {
+    public readUInt32(): number {
         const value = this.buffer.readUInt32LE(this.position);
         this.position += 4;
         return value;
@@ -118,7 +108,7 @@ class Buffalo {
         this.position += 4;
     }
 
-    public readInt32(): Value {
+    public readInt32(): number {
         const value = this.buffer.readInt32LE(this.position);
         this.position += 4;
         return value;
@@ -129,7 +119,7 @@ class Buffalo {
         this.position += 4;
     }
 
-    public readFloatLE(): Value {
+    public readFloatLE(): number {
         const value = this.buffer.readFloatLE(this.position);
         this.position += 4;
         return value;
@@ -140,7 +130,7 @@ class Buffalo {
         this.position += 8;
     }
 
-    public readDoubleLE(): Value {
+    public readDoubleLE(): number {
         const value = this.buffer.readDoubleLE(this.position);
         this.position += 8;
         return value;
@@ -151,28 +141,12 @@ class Buffalo {
         this.writeUInt32(parseInt(value.slice(2, 10), 16));
     }
 
-    public readIeeeAddr(): Value {
-        const length = 8;
-        const value = this.buffer.slice(this.position, this.position + length);
-        this.position += length;
-        return Buffalo.addressBufferToString(value);
+    public readIeeeAddr(): string {
+        const octets = Array.from(this.readBuffer(8).reverse());
+        return '0x' + octets.map(octet => octet.toString(16).padStart(2, '0')).join("");
     }
 
-    private static addressBufferToString(buffer: Buffer): string {
-        let address = '0x';
-        for (let i = 0; i < buffer.length; i++) {
-            const value = buffer.readUInt8(buffer.length - i - 1);
-            if (value <= 15) {
-                address += '0' + value.toString(16);
-            } else {
-                address += value.toString(16);
-            }
-        }
-
-        return address;
-    }
-
-    protected readBuffer(length: number): Value {
+    protected readBuffer(length: number): Buffer {
         const value = this.buffer.slice(this.position, this.position + length);
         this.position += length;
         return value;
@@ -183,9 +157,11 @@ class Buffalo {
             throw new Error(`Length of values: '${values}' is not consitent with expected length '${length}'`);
         }
 
-        for (const value of values) {
-            this.writeUInt8(value);
+        if (!(values instanceof Buffer)) {
+            values = Buffer.from(values);
         }
+
+        this.position += values.copy(this.buffer, this.position);
     }
 
     public writeListUInt8(values: number[]): void {
@@ -194,12 +170,11 @@ class Buffalo {
         }
     }
 
-    public readListUInt8(options: Options): Value {
+    public readListUInt8(options: Options): number[] {
         const value = [];
         for (let i = 0; i < options.length; i++) {
             value.push(this.readUInt8());
         }
-
         return value;
     }
 
@@ -209,7 +184,7 @@ class Buffalo {
         }
     }
 
-    public readListUInt16(options: Options): Value {
+    public readListUInt16(options: Options): number[] {
         const value = [];
         for (let i = 0; i < options.length; i++) {
             value.push(this.readUInt16());
@@ -224,7 +199,7 @@ class Buffalo {
         }
     }
 
-    public readListUInt24(options: Options): Value {
+    public readListUInt24(options: Options): number[] {
         const value = [];
         for (let i = 0; i < options.length; i++) {
             value.push(this.readUInt24());
@@ -239,18 +214,26 @@ class Buffalo {
         }
     }
 
-    public readListUInt32(options: Options): Value {
+    public readListUInt32(options: Options): number[] {
         const value = [];
         for (let i = 0; i < options.length; i++) {
             value.push(this.readUInt32());
         }
-
         return value;
     }
 
-    public write(type: string, value: Value, options: Options): void {
-        options; // prevent not used eslint warning
+    public readUtf8String(length: number): string {
+        const value = this.buffer.toString('utf8', this.position, this.position + length);
+        this.position += length;
+        return value;
+    }
 
+    public writeUtf8String(value: string): void {
+        this.position += this.buffer.write(value, this.position, 'utf8');
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    public write(type: string, value: Value, options: Options): void {
         if (type === 'UINT8') {
             this.writeUInt8(value);
         } else if (type === 'UINT16') {
@@ -278,7 +261,7 @@ class Buffalo {
         } else if (type === 'DOUBLELE') {
             this.writeDoubleLE(value);
         } else if (type === 'EMPTY') {
-            this.writeEmpty();
+            /* nothing to write */
         } else if (type === 'LIST_UINT8') {
             this.writeListUInt8(value);
         } else if (type === 'LIST_UINT16') {
@@ -320,7 +303,7 @@ class Buffalo {
         } else if (type === 'DOUBLELE') {
             return this.readDoubleLE();
         } else if (type === 'EMPTY') {
-            return this.readEmpty();
+            return null;
         } else if (type === 'LIST_UINT8') {
             return this.readListUInt8(options);
         } else if (type === 'LIST_UINT16') {
@@ -334,7 +317,5 @@ class Buffalo {
         }
     }
 }
-
-
 
 export default Buffalo;

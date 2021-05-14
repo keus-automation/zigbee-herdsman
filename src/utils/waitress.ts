@@ -14,8 +14,8 @@ type TimeoutFormatter<TMatcher> = (matcher: TMatcher, timeout: number) => string
 
 class Waitress<TPayload, TMatcher> {
     private waiters: Map<number, Waiter<TPayload, TMatcher>>;
-    private validator: Validator<TPayload, TMatcher>;
-    private timeoutFormatter: TimeoutFormatter<TMatcher>;
+    private readonly validator: Validator<TPayload, TMatcher>;
+    private readonly timeoutFormatter: TimeoutFormatter<TMatcher>;
     private currentID: number;
 
     public constructor(validator: Validator<TPayload, TMatcher>, timeoutFormatter: TimeoutFormatter<TMatcher>) {
@@ -25,20 +25,14 @@ class Waitress<TPayload, TMatcher> {
         this.currentID = 0;
     }
 
-    public resolve(payload: TPayload): void {
-        for (const entry of this.waiters.entries()) {
-            const index = entry[0];
-            const waiter = entry[1];
-            if (waiter.timedout) {
-                this.waiters.delete(index);
-            } else if (this.validator(payload, waiter.matcher)) {
-                clearTimeout(waiter.timer);
-                waiter.resolved = true;
-                waiter.resolve(payload);
-                this.waiters.delete(index);
-            }
-        }
+    public resolve(payload: TPayload): boolean {
+        return this.forEachMatching(payload, waiter => waiter.resolve(payload));
     }
+
+    public reject(payload: TPayload, message: string): boolean {
+        return this.forEachMatching(payload, waiter => waiter.reject(new Error(message)));
+    }
+
 
     public remove(ID: number): void {
         const waiter = this.waiters.get(ID);
@@ -75,6 +69,22 @@ class Waitress<TPayload, TMatcher> {
         };
 
         return {ID, start};
+    }
+
+    private forEachMatching(payload: TPayload, action: (waiter: Waiter<TPayload, TMatcher>) => void): boolean {
+        let foundMatching = false;
+        for (const [index, waiter] of this.waiters.entries()) {
+            if (waiter.timedout) {
+                this.waiters.delete(index);
+            } else if (this.validator(payload, waiter.matcher)) {
+                clearTimeout(waiter.timer);
+                waiter.resolved = true;
+                this.waiters.delete(index);
+                action(waiter);
+                foundMatching = true;
+            }
+        }
+        return foundMatching;
     }
 }
 

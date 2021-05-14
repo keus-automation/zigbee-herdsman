@@ -35,7 +35,7 @@ interface DeviceLeavePayload {
 }
 
 interface PermitJoinChangedPayload {
-    permitted: boolean, reason: 'timer_expired' | 'manual'
+    permitted: boolean, reason: 'timer_expired' | 'manual', timeout: number
 }
 
 const CommandsLookup: {[s: string]: MessagePayloadType} = {
@@ -93,8 +93,12 @@ const CommandsLookup: {[s: string]: MessagePayloadType} = {
     'alertsNotification': 'commandAlertsNotification',
     'programmingEventNotification': 'commandProgrammingEventNotification',
     'getPinCodeRsp': 'commandGetPinCodeRsp',
+    'getUserStatusRsp': 'commandGetUserStatusRsp',
     'arrivalSensorNotify': 'commandArrivalSensorNotify',
     'getPanelStatus': 'commandGetPanelStatus',
+    'checkin': 'commandCheckIn',
+    'moveToHue': 'commandMoveToHue',
+    'store': 'commandStore',
 
     // HEIMAN scenes cluster
     'atHome': 'commandAtHome',
@@ -109,6 +113,7 @@ const CommandsLookup: {[s: string]: MessagePayloadType} = {
     'getIdAndKeyCodeListRsp': 'commandGetIdAndKeyCodeListRsp',
 
     'setTimeRequest': 'commandSetTimeRequest', // Tuya time sync
+    'activeStatusReport': 'commandActiveStatusReport', // Tuya active status report
 };
 
 type MessagePayloadType =
@@ -128,10 +133,10 @@ type MessagePayloadType =
     'commandAppMsg' | 'commandAppMsgRsp' | 'commandAppMsgNoRsp' |
     'commandEnrollReq' | 'commandEnrollRsp' |
     'commandAlertsNotification' | 'commandProgrammingEventNotification' | "commandGetPinCodeRsp" |
-    "commandArrivalSensorNotify" | 'commandCommisioningNotification' |
+    "commandArrivalSensorNotify" | 'commandCommisioningNotification' | 'commandGetUserStatusRsp' |
     'commandAtHome' | 'commandGoOut' | 'commandCinema' | 'commandRepast' | 'commandSleep' |
     'commandStudyKeyRsp' | 'commandCreateIdRsp' | 'commandGetIdAndKeyCodeListRsp' | 'commandSetTimeRequest' |
-    'commandGetPanelStatus';
+    'commandGetPanelStatus' | 'commandCheckIn' | 'commandActiveStatusReport' | 'commandMoveToHue' | 'commandStore';
 
 interface MessagePayload {
     type: MessagePayloadType;

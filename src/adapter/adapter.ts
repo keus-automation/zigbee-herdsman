@@ -4,6 +4,8 @@ import events from 'events';
 import {ZclFrame, FrameType, Direction} from '../zcl';
 import Debug from "debug";
 import {ZStackAdapter} from './z-stack/adapter';
+import {LoggerStub} from "../controller/logger-stub";
+import * as Models from "../models";
 
 const debug = Debug("zigbee-herdsman:adapter");
 
@@ -13,16 +15,18 @@ abstract class Adapter extends events.EventEmitter {
     protected adapterOptions: TsType.AdapterOptions;
     protected serialPortOptions: TsType.SerialPortOptions;
     protected backupPath: string;
+    protected logger?: LoggerStub;
 
     protected constructor(
         networkOptions: TsType.NetworkOptions, serialPortOptions: TsType.SerialPortOptions, backupPath: string,
-        adapterOptions: TsType.AdapterOptions)
+        adapterOptions: TsType.AdapterOptions, logger?: LoggerStub)
     {
         super();
         this.networkOptions = networkOptions;
         this.adapterOptions = adapterOptions;
         this.serialPortOptions = serialPortOptions;
         this.backupPath = backupPath;
+        this.logger = logger;
     }
 
     /**
@@ -34,17 +38,19 @@ abstract class Adapter extends events.EventEmitter {
         serialPortOptions: TsType.SerialPortOptions,
         backupPath: string,
         adapterOptions: TsType.AdapterOptions,
+        logger?: LoggerStub,
     ): Promise<Adapter> {
-        // Disable all adapters, only enable Zstack Adapter
-
         const {ZStackAdapter} = await import('./z-stack/adapter');
-        // const {DeconzAdapter} = await import('./deconz/adapter');
-        // const {ZiGateAdapter} = await import('./zigate/adapter');
-        type AdapterImplementation = typeof ZStackAdapter;
-        // type AdapterImplementation = typeof ZStackAdapter;
+        const {DeconzAdapter} = await import('./deconz/adapter');
+        const {ZiGateAdapter} = await import('./zigate/adapter');
+        const {EZSPAdapter} = await import('./ezsp/adapter');
+        type AdapterImplementation = (typeof ZStackAdapter | typeof DeconzAdapter | typeof ZiGateAdapter
+            | typeof EZSPAdapter);
+
         let adapters: AdapterImplementation[];
-        const adapterLookup = {zstack: ZStackAdapter};
-        if (serialPortOptions.adapter) {
+        const adapterLookup = {zstack: ZStackAdapter, deconz: DeconzAdapter, zigate: ZiGateAdapter,
+            ezsp: EZSPAdapter};
+        if (serialPortOptions.adapter && serialPortOptions.adapter !== 'auto') {
             if (adapterLookup.hasOwnProperty(serialPortOptions.adapter)) {
                 adapters = [adapterLookup[serialPortOptions.adapter]];
             } else {
@@ -90,7 +96,7 @@ abstract class Adapter extends events.EventEmitter {
             }
         }
 
-        return new adapter(networkOptions, serialPortOptions, backupPath, adapterOptions);
+        return new adapter(networkOptions, serialPortOptions, backupPath, adapterOptions, logger);
     }
 
     public abstract start(): Promise<TsType.StartResult>;
@@ -109,7 +115,7 @@ abstract class Adapter extends events.EventEmitter {
 
     public abstract supportsBackup(): Promise<boolean>;
 
-    public abstract backup(): Promise<TsType.Backup>;
+    public abstract backup(): Promise<Models.Backup>;
 
     public abstract getNetworkParameters(): Promise<TsType.NetworkParameters>;
 
