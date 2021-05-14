@@ -68,7 +68,8 @@ class ZStackAdapter extends Adapter {
         serialPortOptions: SerialPortOptions, backupPath: string, adapterOptions: AdapterOptions) {
 
         super(networkOptions, serialPortOptions, backupPath, adapterOptions);
-        this.znp = new Znp(this.serialPortOptions.path, this.serialPortOptions.baudRate, this.serialPortOptions.rtscts);
+        this.znp = new Znp(this.serialPortOptions.path, this.serialPortOptions.baudRate,
+            this.serialPortOptions.rtscts, this.serialPortOptions.socketOptions);
 
         this.transactionID = 0;
         this.deviceAnnounceRouteDiscoveryDebouncers = new Map();

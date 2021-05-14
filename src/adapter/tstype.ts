@@ -1,9 +1,22 @@
+import * as net from 'net';
+
 interface NetworkOptions {
-    panID: number | string;
+    panID: number;
     extendedPanID?: number[];
     channelList: number[];
     networkKey?: number[];
     networkKeyDistribute?: boolean;
+}
+
+interface SocketOptions {
+    getCustomWriter: () => any;
+    getCustomParser: () => any;
+    onReady: () => void;
+    onConnect: (client: net.Socket) => void;
+    onClose: () => void;
+    onError: (error: any) => void;
+    onData: (data: Buffer) => Promise<Buffer | null>;
+    onWrite: (data: Buffer) => Buffer;
 }
 
 interface SerialPortOptions {
@@ -11,6 +24,7 @@ interface SerialPortOptions {
     rtscts?: boolean;
     path?: string;
     adapter?: 'zstack';
+    socketOptions?: SocketOptions;
 }
 
 interface AdapterOptions {
@@ -97,5 +111,5 @@ interface NetworkParameters {
 export {
     SerialPortOptions, NetworkOptions, Coordinator, CoordinatorVersion, NodeDescriptor,
     DeviceType, ActiveEndpoints, SimpleDescriptor, LQI, LQINeighbor, RoutingTable, Backup, NetworkParameters,
-    StartResult, RoutingTableEntry, AdapterOptions,
+    StartResult, RoutingTableEntry, AdapterOptions, SocketOptions
 };

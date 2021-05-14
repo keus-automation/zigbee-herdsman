@@ -7,17 +7,30 @@ const debug = Debug('zigbee-herdsman:adapter:zStack:unpi:parser');
 
 class Parser extends stream.Transform {
     private buffer: Buffer;
+    private customParser: any;
 
-    public constructor() {
+    public constructor(customParser: any) {
         super();
+        this.customParser = customParser;
         this.buffer = Buffer.from([]);
     }
 
     public _transform(chunk: Buffer, _: string, cb: () => void): void {
         debug(`<-- [${[...chunk]}]`);
-        this.buffer = Buffer.concat([this.buffer, chunk]);
-        this.parseNext();
-        cb();
+        if (this.customParser) {
+            let znpData = this.customParser(chunk);
+
+            if (znpData) {
+                this.buffer = Buffer.concat([this.buffer, znpData]);
+                this.parseNext();
+            }
+
+            cb();
+        } else {
+            this.buffer = Buffer.concat([this.buffer, chunk]);
+            this.parseNext();
+            cb();
+        }
     }
 
     private parseNext(): void {

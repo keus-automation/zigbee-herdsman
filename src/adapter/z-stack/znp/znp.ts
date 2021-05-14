@@ -8,6 +8,7 @@ import {Wait, Queue, Waitress, RealpathSync} from '../../../utils';
 
 import SerialPortUtils from '../../serialPortUtils';
 import SocketPortUtils from '../../socketPortUtils';
+import {SocketOptions} from '../../tstype';
 
 import * as Constants from '../constants';
 
@@ -56,6 +57,7 @@ class Znp extends events.EventEmitter {
     private path: string;
     private baudRate: number;
     private rtscts: boolean;
+    private socketOptions: SocketOptions;
 
     private portType: 'serial' | 'socket';
     private serialPort: SerialPort;
@@ -66,13 +68,14 @@ class Znp extends events.EventEmitter {
     private queue: Queue;
     private waitress: Waitress<ZpiObject, WaitressMatcher>;
 
-    public constructor(path: string, baudRate: number, rtscts: boolean) {
+    public constructor(path: string, baudRate: number, rtscts: boolean, socketOptions?: SocketOptions) {
         super();
 
         this.path = path;
         this.baudRate = typeof baudRate === 'number' ? baudRate : 115200;
         this.rtscts = typeof rtscts === 'boolean' ? rtscts : false;
         this.portType = SocketPortUtils.isTcpPath(path) ? 'socket' : 'serial';
+        this.socketOptions = socketOptions;
 
         this.initialized = false;
 
@@ -170,22 +173,45 @@ class Znp extends events.EventEmitter {
         this.socketPort.setNoDelay(true);
         this.socketPort.setKeepAlive(true, 15000);
 
-        this.unpiWriter = new UnpiWriter();
-        this.unpiWriter.pipe(this.socketPort);
+        this.unpiWriter = new UnpiWriter(this.socketOptions && this.socketOptions.onWrite);
 
-        this.unpiParser = new UnpiParser();
-        this.socketPort.pipe(this.unpiParser);
+        let customWriter = this.socketOptions.getCustomWriter();
+        if (customWriter) {
+            this.unpiWriter
+                .pipe(customWriter)
+                .pipe(this.socketPort);
+        } else {
+            this.unpiWriter.pipe(this.socketPort);
+        }
+        
+        this.unpiParser = new UnpiParser(this.socketOptions && this.socketOptions.onData);
+
+        let customParser = this.socketOptions.getCustomParser();
+        if (customParser) {
+            this.socketPort
+                .pipe(this.socketOptions.getCustomParser())
+                .pipe(this.unpiParser);
+        } else {
+            this.socketPort.pipe(this.unpiParser);
+        }
+
         this.unpiParser.on('parsed', this.onUnpiParsed);
 
         return new Promise((resolve, reject): void => {
-            this.socketPort.on('connect', function() {
+            this.socketPort.on('connect', () => {
                 debug.log('Socket connected');
+                if (this.socketOptions && this.socketOptions.onConnect) {
+                    this.socketOptions.onConnect(this.socketPort);
+                }
             });
 
             // eslint-disable-next-line
             const self = this;
             this.socketPort.on('ready', async function() {
                 debug.log('Socket ready');
+                if (self.socketOptions && self.socketOptions.onReady) {
+                    await self.socketOptions.onReady();
+                }
                 await self.skipBootloader();
                 self.initialized = true;
                 resolve();
@@ -197,6 +223,10 @@ class Znp extends events.EventEmitter {
                 debug.log('Socket error');
                 reject(new Error(`Error while opening socket`));
                 self.initialized = false;
+                
+                if (self.socketOptions && self.socketOptions.onError) {
+                    self.socketOptions.onError('socket error');
+                }
             });
 
             this.socketPort.connect(info.port, info.host);
