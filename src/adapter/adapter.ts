@@ -115,7 +115,7 @@ abstract class Adapter extends events.EventEmitter {
 
     public abstract supportsBackup(): Promise<boolean>;
 
-    public abstract backup(): Promise<Models.Backup>;
+    public abstract backup(): Promise<Models.Backup | void>;
 
     public abstract getNetworkParameters(): Promise<TsType.NetworkParameters>;
 

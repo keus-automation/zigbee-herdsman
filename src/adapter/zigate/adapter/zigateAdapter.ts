@@ -197,7 +197,7 @@ class ZiGateAdapter extends Adapter {
         return false;
     };
 
-    public async backup(): Promise<Models.Backup> {
+    public async backup(): Promise<Models.Backup | void> {
         throw new Error("This adapter does not support backup");
     };
 
