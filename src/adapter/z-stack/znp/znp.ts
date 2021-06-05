@@ -175,7 +175,9 @@ class Znp extends events.EventEmitter {
 
         this.unpiWriter = new UnpiWriter(this.socketOptions && this.socketOptions.onWrite);
 
-        let customWriter = this.socketOptions.getCustomWriter();
+        console.log('Socket Options', this.socketOptions);
+
+        let customWriter = this.socketOptions && this.socketOptions.getCustomWriter();
         if (customWriter) {
             this.unpiWriter
                 .pipe(customWriter)
@@ -186,7 +188,7 @@ class Znp extends events.EventEmitter {
         
         this.unpiParser = new UnpiParser(this.socketOptions && this.socketOptions.onData);
 
-        let customParser = this.socketOptions.getCustomParser();
+        let customParser = this.socketOptions && this.socketOptions.getCustomParser();
         if (customParser) {
             this.socketPort
                 .pipe(this.socketOptions.getCustomParser())
@@ -212,6 +214,8 @@ class Znp extends events.EventEmitter {
                 if (self.socketOptions && self.socketOptions.onReady) {
                     await self.socketOptions.onReady();
                 }
+
+                console.log('ready yo skip bootloader');
                 await self.skipBootloader();
                 self.initialized = true;
                 resolve();

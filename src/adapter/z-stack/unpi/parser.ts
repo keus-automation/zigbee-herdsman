@@ -9,7 +9,7 @@ class Parser extends stream.Transform {
     private buffer: Buffer;
     private customParser: any;
 
-    public constructor(customParser: any) {
+    public constructor(customParser?: any) {
         super();
         this.customParser = customParser;
         this.buffer = Buffer.from([]);
@@ -18,6 +18,7 @@ class Parser extends stream.Transform {
     public _transform(chunk: Buffer, _: string, cb: () => void): void {
         debug(`<-- [${[...chunk]}]`);
         if (this.customParser) {
+            console.log(this.customParser);
             let znpData = this.customParser(chunk);
 
             if (znpData) {

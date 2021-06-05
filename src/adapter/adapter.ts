@@ -3,7 +3,6 @@ import {ZclDataPayload} from './events';
 import events from 'events';
 import {ZclFrame, FrameType, Direction} from '../zcl';
 import Debug from "debug";
-import {ZStackAdapter} from './z-stack/adapter';
 import {LoggerStub} from "../controller/logger-stub";
 import * as Models from "../models";
 
@@ -115,7 +114,7 @@ abstract class Adapter extends events.EventEmitter {
 
     public abstract supportsBackup(): Promise<boolean>;
 
-    public abstract backup(): Promise<Models.Backup | void>;
+    public abstract backup(): Promise<Models.Backup | any>;
 
     public abstract getNetworkParameters(): Promise<TsType.NetworkParameters>;
 
