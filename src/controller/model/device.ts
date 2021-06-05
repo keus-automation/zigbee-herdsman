@@ -169,8 +169,9 @@ class Device extends Entity {
         return this.endpoints.find((d): boolean => d.deviceID === deviceID);
     }
 
-    public updateLastSeen(): void {
+    public receivedMessage(): void {
         this._lastSeen = Date.now();
+        this.endpoints.forEach((e) => e.sendPendingRequests());
     }
 
     public async onZclData(dataPayload: AdapterEvents.ZclDataPayload, endpoint: Endpoint): Promise<void> {
@@ -183,32 +184,36 @@ class Device extends Entity {
             await endpoint.command('ssIasZone', 'enrollRsp', payload, {disableDefaultResponse: true});
         }
 
-        // Reponse to genTime reads
-        if (frame.isGlobal() && frame.isCluster('genTime') && frame.isCommand('read')) {
+        // Reponse to read requests
+        if (frame.isGlobal() && frame.isCommand('read')) {
             const time = Math.round(((new Date()).getTime() - OneJanuary2000) / 1000);
-            const response: KeyValue = {};
-            const values: KeyValue = {
-                timeStatus: 3, // Time-master + synchronised
-                time: time,
-                timeZone: ((new Date()).getTimezoneOffset() * -1) * 60,
-                localTime: time - (new Date()).getTimezoneOffset() * 60,
+            const attributes: {[s: string]: KeyValue} = {
+                ...endpoint.clusters,
+                genTime: {attributes: {
+                    timeStatus: 3, // Time-master + synchronised
+                    time: time,
+                    timeZone: ((new Date()).getTimezoneOffset() * -1) * 60,
+                    localTime: time - (new Date()).getTimezoneOffset() * 60,
+                }},
             };
 
-            const cluster = Zcl.Utils.getCluster('genTime');
-            for (const entry of frame.Payload) {
-                const name = cluster.getAttribute(entry.attrId).name;
-                if (values.hasOwnProperty(name)) {
-                    response[name] = values[name];
-                } else {
-                    debug.error(`'${this.ieeeAddr}' read unsupported attribute from genTime '${name}'`);
+            if (frame.Cluster.name in attributes) {
+                const response: KeyValue = {};
+                for (const entry of frame.Payload) {
+                    const name = frame.Cluster.getAttribute(entry.attrId).name;
+                    if (name in attributes[frame.Cluster.name].attributes) {
+                        response[name] = attributes[frame.Cluster.name].attributes[name];
+                    }
+                }
+
+                try {
+                    await endpoint.readResponse(frame.Cluster.ID, frame.Header.transactionSequenceNumber, response,
+                        {srcEndpoint: dataPayload.destinationEndpoint});
+                } catch (error) {
+                    debug.error(`Read response to ${this.ieeeAddr} failed`);
                 }
             }
 
-            try {
-                await endpoint.readResponse(frame.Cluster.ID, frame.Header.transactionSequenceNumber, response);
-            } catch (error) {
-                debug.error(`genTime response to ${this.ieeeAddr} failed`);
-            }
         }
 
         // Send a default response if necessary.
@@ -388,6 +393,9 @@ class Device extends Entity {
             // below prevents interview from failing
             // https://github.com/Koenkk/zigbee2mqtt/issues/4655
             'TS0216': {},
+            // Fails during ias enroll due to UNSUPPORTED_ATTRIBUTE
+            // https://github.com/Koenkk/zigbee2mqtt/issues/7564
+            'TS0202': {},
             'MULTI-MECI--EA01': {},
         };
 

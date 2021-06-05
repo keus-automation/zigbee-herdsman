@@ -8,6 +8,7 @@ enum Events {
     deviceRejoined = "deviceRejoined",
     deviceInterview = "deviceInterview",
     deviceAnnounce = "deviceAnnounce",
+    deviceNetworkAddressChanged = "deviceNetworkAddressChanged",
     deviceLeave = "deviceLeave",
     permitJoinChanged = "permitJoinChanged",
 }
@@ -23,6 +24,10 @@ interface DeviceRejoinedPayload {
 
 interface DeviceInterviewPayload {
     status: 'started' | 'successful' | 'failed';
+    device: Device;
+}
+
+interface DeviceNetworkAddressChangedPayload {
     device: Device;
 }
 
@@ -114,6 +119,13 @@ const CommandsLookup: {[s: string]: MessagePayloadType} = {
 
     'setTimeRequest': 'commandSetTimeRequest', // Tuya time sync
     'activeStatusReport': 'commandActiveStatusReport', // Tuya active status report
+
+    // Wiser Smart HVAC Commmands
+    'wiserSmartSetSetpoint': 'commandWiserSmartSetSetpoint',
+    'wiserSmartCalibrateValve': 'commandWiserSmartCalibrateValve',
+
+    // Dafoss Ally/Hive TRV Commands
+    'danfossSetpointCommand': 'commandDanfossSetpointCommand',
 };
 
 type MessagePayloadType =
@@ -136,7 +148,8 @@ type MessagePayloadType =
     "commandArrivalSensorNotify" | 'commandCommisioningNotification' | 'commandGetUserStatusRsp' |
     'commandAtHome' | 'commandGoOut' | 'commandCinema' | 'commandRepast' | 'commandSleep' |
     'commandStudyKeyRsp' | 'commandCreateIdRsp' | 'commandGetIdAndKeyCodeListRsp' | 'commandSetTimeRequest' |
-    'commandGetPanelStatus' | 'commandCheckIn' | 'commandActiveStatusReport' | 'commandMoveToHue' | 'commandStore';
+    'commandGetPanelStatus' | 'commandCheckIn' | 'commandActiveStatusReport' | 'commandMoveToHue' | 'commandStore'|
+    'commandWiserSmartSetSetpoint' | 'commandWiserSmartCalibrateValve' | 'commandDanfossSetpointCommand';
 
 interface MessagePayload {
     type: MessagePayloadType;
@@ -153,6 +166,6 @@ interface MessagePayload {
 
 export {
     Events, MessagePayload, MessagePayloadType, CommandsLookup, DeviceInterviewPayload, DeviceAnnouncePayload,
-    DeviceLeavePayload, DeviceJoinedPayload, PermitJoinChangedPayload,
+    DeviceLeavePayload, DeviceJoinedPayload, PermitJoinChangedPayload, DeviceNetworkAddressChangedPayload,
     DeviceRejoinedPayload
 };
