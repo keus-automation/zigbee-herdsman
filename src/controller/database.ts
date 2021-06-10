@@ -39,9 +39,13 @@ class Database {
         this.write();
     }
 
-    public update(DatabaseEntry: DatabaseEntry): void {
+    public update(DatabaseEntry: DatabaseEntry, forceInsert: Boolean = true): void {
         if (!this.entries[DatabaseEntry.id]) {
-            throw new Error(`DatabaseEntry with ID '${DatabaseEntry.id}' does not exist`);
+            if (!forceInsert) {
+                throw new Error(`DatabaseEntry with ID '${DatabaseEntry.id}' does not exist`);
+            } else {
+                this.entries = {};
+            }
         }
 
         this.entries[DatabaseEntry.id] = DatabaseEntry;

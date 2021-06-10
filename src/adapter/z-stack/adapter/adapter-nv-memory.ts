@@ -89,6 +89,7 @@ export class AdapterNvMemory {
         const buffer = Buffer.isBuffer(data) ? data : data.serialize(this.memoryAlignment);
         const lengthResponse = await this.retry(() => this.znp.request(Subsystem.SYS, "osalNvLength", {id}));
         const exists = lengthResponse.payload.length && lengthResponse.payload.length > 0;
+
         /* istanbul ignore next */
         if (!exists) {
             const initLength = buffer.length > 240 ? 240 : buffer.length;
@@ -96,7 +97,7 @@ export class AdapterNvMemory {
                 throw new Error(`Cannot write NV memory item which does not exist (id=${id})`);
             }
             const initResponse = await this.retry(() => this.znp.request(Subsystem.SYS, "osalNvItemInit", {id, len: buffer.length, initlen: initLength, initvalue: buffer.slice(0, initLength)}, undefined, [ZnpCommandStatus.SUCCESS, ZnpCommandStatus.NV_ITEM_INITIALIZED]));
-            if (initResponse.payload.status !== 0x09) {
+            if (initResponse.payload.status !== 0x09 && initResponse.payload.status !== 0x00) {
                 throw new Error(`Failed to initialize NV memory item (id=${id}, name=${NvItemsIds[id]}, len=${buffer.length}, status=${initResponse.payload.status})`);
             }
         }
