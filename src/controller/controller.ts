@@ -122,18 +122,21 @@ class Controller extends events.EventEmitter {
     /**
      * Start the Herdsman controller
      */
-    public async start(): Promise<void> {
+    public async start(): Promise<AdapterTsType.StartResult> {
+        // Database (create end inject)
+        this.database = Database.open(this.options.databasePath);
+        Entity.injectDatabase(this.database);
+
+        // Adapter (create and inject)
         this.adapter = await Adapter.create(this.options.network,
             this.options.serialPort, this.options.backupPath, this.options.adapter, this.logger);
         debug.log(`Starting with options '${JSON.stringify(this.options)}'`);
-        this.database = Database.open(this.options.databasePath);
         const startResult = await this.adapter.start();
         debug.log(`Started with result '${startResult}'`);
-
-        // Inject adapter and database in entity
-        debug.log(`Injected database: ${this.database != null}, adapter: ${this.adapter != null}`);
         Entity.injectAdapter(this.adapter);
-        Entity.injectDatabase(this.database);
+
+        // log injection
+        debug.log(`Injected database: ${this.database != null}, adapter: ${this.adapter != null}`);
 
         this.greenPower = new GreenPower(this.adapter);
         this.greenPower.on(GreenPowerEvents.deviceJoined, this.onDeviceJoinedGreenPower.bind(this));
@@ -191,6 +194,8 @@ class Controller extends events.EventEmitter {
         this.databaseSaveTimer = setInterval(() => this.databaseSave(), 3600000);
 
         this.touchlink = new Touchlink(this.adapter);
+
+        return startResult;
     }
 
     public async touchlinkIdentify(ieeeAddr: string, channel: number): Promise<void> {

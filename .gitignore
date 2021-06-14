@@ -5,3 +5,4 @@ dist/
 temp/
 .history/
 package-lock.json
+.remote-sync.json
