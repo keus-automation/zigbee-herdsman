@@ -84,18 +84,19 @@ class Endpoint extends Entity {
     private meta: KeyValue;
     /* eslint-disable-next-line @typescript-eslint/no-explicit-any*/
     private pendingRequests: {func: () => Promise<any>, resolve: (value: any) => any, reject: (error: any) => any}[];
+    private _dbInstKey: string;
 
     // Getters/setters
     get binds(): Bind[] {
         return this._binds.map((entry) => {
             let target: Group | Endpoint = null;
             if (entry.type === 'endpoint') {
-                const device = Device.byIeeeAddr(entry.deviceIeeeAddress);
+                const device = Device.byIeeeAddr(this._dbInstKey, entry.deviceIeeeAddress);
                 if (device) {
                     target = device.getEndpoint(entry.endpointID);
                 }
             } else {
-                target = Group.byGroupID(entry.groupID);
+                target = Group.byGroupID(this._dbInstKey, entry.groupID);
             }
 
             if (target) {
@@ -135,7 +136,7 @@ class Endpoint extends Entity {
         ID: number, profileID: number, deviceID: number, inputClusters: number[], outputClusters: number[],
         deviceNetworkAddress: number, deviceIeeeAddress: string, clusters: Clusters, binds: BindInternal[],
         configuredReportings: ConfiguredReportingInternal[],
-        meta: KeyValue,
+        meta: KeyValue, dbInstKey: string
     ) {
         super();
         this.ID = ID;
@@ -151,13 +152,14 @@ class Endpoint extends Entity {
         this._configuredReportings = configuredReportings;
         this.meta = meta;
         this.pendingRequests = [];
+        this._dbInstKey = dbInstKey;
     }
 
     /**
      * Get device of this endpoint
      */
     public getDevice(): Device {
-        return Device.byIeeeAddr(this.deviceIeeeAddress);
+        return Device.byIeeeAddr(this._dbInstKey, this.deviceIeeeAddress);
     }
 
     /**
@@ -207,7 +209,7 @@ class Endpoint extends Entity {
      */
 
     public static fromDatabaseRecord(
-        record: KeyValue, deviceNetworkAddress: number, deviceIeeeAddress: string
+        record: KeyValue, deviceNetworkAddress: number, deviceIeeeAddress: string, dbInstKey: string
     ): Endpoint {
         // Migrate attrs to attributes
         for (const entry of Object.values(record.clusters).filter((e) => e.hasOwnProperty('attrs'))) {
@@ -222,7 +224,7 @@ class Endpoint extends Entity {
         return new Endpoint(
             record.epId, record.profId, record.devId, record.inClusterList, record.outClusterList, deviceNetworkAddress,
             deviceIeeeAddress, record.clusters, record.binds || [], record.configuredReportings || [],
-            record.meta || {},
+            record.meta || {}, dbInstKey
         );
     }
 
@@ -236,11 +238,11 @@ class Endpoint extends Entity {
 
     public static create(
         ID: number, profileID: number, deviceID: number, inputClusters: number[], outputClusters: number[],
-        deviceNetworkAddress: number, deviceIeeeAddress: string,
+        deviceNetworkAddress: number, deviceIeeeAddress: string, dbInstKey: string
     ): Endpoint {
         return new Endpoint(
             ID, profileID, deviceID, inputClusters, outputClusters, deviceNetworkAddress,
-            deviceIeeeAddress, {}, [], [], {},
+            deviceIeeeAddress, {}, [], [], {}, dbInstKey
         );
     }
 
@@ -326,7 +328,7 @@ class Endpoint extends Entity {
             );
 
             await this.sendRequest(async () => {
-                await Entity.adapter.sendZclFrameToEndpoint(
+                await Entity.adapters[this._dbInstKey].sendZclFrameToEndpoint(
                     this.deviceIeeeAddress, this.deviceNetworkAddress, this.ID, frame, options.timeout,
                     options.disableResponse, options.disableRecovery, options.srcEndpoint,
                 );
@@ -367,7 +369,7 @@ class Endpoint extends Entity {
             );
 
             const result = await this.sendRequest(async () => {
-                return Entity.adapter.sendZclFrameToEndpoint(
+                return Entity.adapters[this._dbInstKey].sendZclFrameToEndpoint(
                     this.deviceIeeeAddress, this.deviceNetworkAddress, this.ID, frame, options.timeout,
                     options.disableResponse, options.disableRecovery, options.srcEndpoint,
                 );
@@ -405,7 +407,7 @@ class Endpoint extends Entity {
 
         try {
             const result = await this.sendRequest(async () => {
-                return Entity.adapter.sendZclFrameToEndpoint(
+                return Entity.adapters[this._dbInstKey].sendZclFrameToEndpoint(
                     this.deviceIeeeAddress, this.deviceNetworkAddress, this.ID, frame, options.timeout,
                     options.disableResponse, options.disableRecovery, options.srcEndpoint,
                 );
@@ -453,7 +455,7 @@ class Endpoint extends Entity {
 
         try {
             await this.sendRequest(async () => {
-                await Entity.adapter.sendZclFrameToEndpoint(
+                await Entity.adapters[this._dbInstKey].sendZclFrameToEndpoint(
                     this.deviceIeeeAddress, this.deviceNetworkAddress, this.ID, frame, options.timeout,
                     options.disableResponse, options.disableRecovery, options.srcEndpoint
                 );
@@ -468,7 +470,7 @@ class Endpoint extends Entity {
     public addBinding(clusterKey: number | string, target: Endpoint | Group | number): void {
         const cluster = Zcl.Utils.getCluster(clusterKey);
         if (typeof target === 'number') {
-            target = Group.byGroupID(target) || Group.create(target);
+            target = Group.byGroupID(this._dbInstKey, target) || Group.create(this._dbInstKey, target);
         }
 
         if (!this.binds.find((b) => b.cluster.ID === cluster.ID && b.target === target)) {
@@ -489,7 +491,7 @@ class Endpoint extends Entity {
         const cluster = Zcl.Utils.getCluster(clusterKey);
         const type = target instanceof Endpoint ? 'endpoint' : 'group';
         if (typeof target === 'number') {
-            target = Group.byGroupID(target) || Group.create(target);
+            target = Group.byGroupID(this._dbInstKey, target) || Group.create(this._dbInstKey, target);
         }
 
         const destinationAddress = target instanceof Endpoint ? target.deviceIeeeAddress : target.groupID;
@@ -499,7 +501,7 @@ class Endpoint extends Entity {
         debug.info(log);
 
         try {
-            await Entity.adapter.bind(
+            await Entity.adapters[this._dbInstKey].bind(
                 this.deviceNetworkAddress, this.deviceIeeeAddress, this.ID, cluster.ID, destinationAddress, type,
                 target instanceof Endpoint ? target.ID : null,
             );
@@ -528,13 +530,13 @@ class Endpoint extends Entity {
         debug.info(log);
 
         try {
-            await Entity.adapter.unbind(
+            await Entity.adapters[this._dbInstKey].unbind(
                 this.deviceNetworkAddress, this.deviceIeeeAddress, this.ID, cluster.ID, destinationAddress, type,
                 target instanceof Endpoint ? target.ID : null,
             );
 
-            if (typeof target === 'number' && Group.byGroupID(target)) {
-                target = Group.byGroupID(target);
+            if (typeof target === 'number' && Group.byGroupID(this._dbInstKey, target)) {
+                target = Group.byGroupID(this._dbInstKey, target);
             }
 
             const index = this.binds.findIndex((b) => b.cluster.ID === cluster.ID && b.target === target);
@@ -566,7 +568,7 @@ class Endpoint extends Entity {
 
         try {
             await this.sendRequest(async () => {
-                await Entity.adapter.sendZclFrameToEndpoint(
+                await Entity.adapters[this._dbInstKey].sendZclFrameToEndpoint(
                     this.deviceIeeeAddress, this.deviceNetworkAddress, this.ID, frame, options.timeout,
                     options.disableResponse, options.disableRecovery, options.srcEndpoint
                 );
@@ -619,7 +621,7 @@ class Endpoint extends Entity {
 
         try {
             const result = await this.sendRequest(async () => {
-                return Entity.adapter.sendZclFrameToEndpoint(
+                return Entity.adapters[this._dbInstKey].sendZclFrameToEndpoint(
                     this.deviceIeeeAddress, this.deviceNetworkAddress, this.ID, frame, options.timeout,
                     options.disableResponse, options.disableRecovery, options.srcEndpoint
                 );
@@ -670,7 +672,7 @@ class Endpoint extends Entity {
 
         try {
             await this.sendRequest(async () => {
-                await Entity.adapter.sendZclFrameToEndpoint(
+                await Entity.adapters[this._dbInstKey].sendZclFrameToEndpoint(
                     this.deviceIeeeAddress, this.deviceNetworkAddress, this.ID, frame, options.timeout,
                     options.disableResponse, options.disableRecovery, options.srcEndpoint
                 );
@@ -705,7 +707,7 @@ class Endpoint extends Entity {
 
         try {
             const result = await this.sendRequest(async () => {
-                return Entity.adapter.sendZclFrameToEndpoint(
+                return Entity.adapters[this._dbInstKey].sendZclFrameToEndpoint(
                     this.deviceIeeeAddress, this.deviceNetworkAddress, this.ID, frame, options.timeout,
                     options.disableResponse, options.disableRecovery, options.srcEndpoint
                 );
@@ -742,7 +744,7 @@ class Endpoint extends Entity {
 
         try {
             await this.sendRequest(async () => {
-                await Entity.adapter.sendZclFrameToEndpoint(
+                await Entity.adapters[this._dbInstKey].sendZclFrameToEndpoint(
                     this.deviceIeeeAddress, this.deviceNetworkAddress, this.ID, frame, options.timeout,
                     options.disableResponse, options.disableRecovery, options.srcEndpoint
                 );
@@ -759,7 +761,7 @@ class Endpoint extends Entity {
     ): {promise: Promise<{header: KeyValue; payload: KeyValue}>; cancel: () => void} {
         const cluster = Zcl.Utils.getCluster(clusterKey);
         const command = cluster.getCommand(commandKey);
-        const waiter = Entity.adapter.waitFor(
+        const waiter = Entity.adapters[this._dbInstKey].waitFor(
             this.deviceNetworkAddress, this.ID, Zcl.FrameType.SPECIFIC, Zcl.Direction.CLIENT_TO_SERVER,
             transactionSequenceNumber, cluster.ID, command.ID, timeout
         );
@@ -818,7 +820,7 @@ class Endpoint extends Entity {
     }
 
     public removeFromAllGroupsDatabase(): void {
-        for (const group of Group.all()) {
+        for (const group of Group.all(this._dbInstKey)) {
             if (group.hasMember(this)) {
                 group.removeMember(this);
             }

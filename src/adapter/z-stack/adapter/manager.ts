@@ -411,7 +411,7 @@ export class ZnpAdapterManager {
                 this.debug.startup(`endpoint '${endpoint.endpoint}' already registered`);
             } else {
                 this.debug.startup(`registering endpoint '${endpoint.endpoint}'`);
-                await this.znp.request(Subsystem.AF, 'register', endpoint, null, [
+                await this.znp.request(Subsystem.AF, 'register', endpoint, null, null, [
                     ZnpCommandStatus.SUCCESS, ZnpCommandStatus.APS_DUPLICATE_ENTRY
                 ]);
             }
