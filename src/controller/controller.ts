@@ -544,7 +544,7 @@ class Controller extends events.EventEmitter {
             this.emit(Events.Events.deviceRejoined, eventData);
 
             if (device.manufacturerID && device.manufacturerID == 0xAAAA) {
-                device.updateLastSeen();
+                device.receivedMessage();
                 return;
             }
         } else{
