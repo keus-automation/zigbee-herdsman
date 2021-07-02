@@ -175,8 +175,6 @@ class Znp extends events.EventEmitter {
 
         this.unpiWriter = new UnpiWriter(this.socketOptions && this.socketOptions.onWrite);
 
-        console.log('Socket Options', this.socketOptions);
-
         let customWriter = this.socketOptions && this.socketOptions.getCustomWriter();
         if (customWriter) {
             this.unpiWriter
@@ -215,7 +213,6 @@ class Znp extends events.EventEmitter {
                     await self.socketOptions.onReady();
                 }
 
-                console.log('ready yo skip bootloader');
                 await self.skipBootloader();
                 self.initialized = true;
                 resolve();

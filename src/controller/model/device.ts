@@ -107,8 +107,6 @@ class Device extends Entity {
         if (!Device.devices) {
             Device.devices = {};
         }
-
-        Device.devices[dbInstKey] = {};
     }
 
     public static readonly ReportablePropertiesMapping: {[s: string]: {
@@ -289,8 +287,7 @@ class Device extends Entity {
     }
 
     private static loadFromDatabaseIfNecessary(dbInstKey: string): void {
-        if (!Device.devices) {
-            Device.devices = {};
+        if (!Device.devices[dbInstKey]) {
             Device.devices[dbInstKey] = {};
 
             const entries = Entity.databases[dbInstKey].getEntries(['Coordinator', 'EndDevice', 'Router', 'GreenPower', 'Unknown']);
@@ -303,8 +300,6 @@ class Device extends Entity {
 
     public static byIeeeAddr(dbInstKey: string, ieeeAddr: string): Device {
         Device.loadFromDatabaseIfNecessary(dbInstKey);
-        console.log(Device.devices);
-
         return Device.devices[dbInstKey][ieeeAddr];
     }
 
@@ -313,9 +308,7 @@ class Device extends Entity {
         return Object.values(Device.devices[dbInstKey]).find(d => d.networkAddress === networkAddress);
     }
 
-    public static byType(dbInstKey: string, type: DeviceType): Device[] {
-        console.log(dbInstKey, Device.devices);
-        
+    public static byType(dbInstKey: string, type: DeviceType): Device[] {        
         Device.loadFromDatabaseIfNecessary(dbInstKey);
         return Object.values(Device.devices[dbInstKey]).filter(d => d.type === type);
     }

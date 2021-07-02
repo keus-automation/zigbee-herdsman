@@ -86,6 +86,10 @@ class Controller extends events.EventEmitter {
     private logger?: LoggerStub;
     private dbInstKey?: string;
 
+    public getDbInstKey():string {
+        return this.dbInstKey;
+    }
+
     /**
      * Create a controller
      *
@@ -97,7 +101,9 @@ class Controller extends events.EventEmitter {
         this.options = mixin(JSON.parse(JSON.stringify(DefaultOptions)), options);
         this.logger = logger;
         this.dbInstKey = this.options.instanceUniqueKey;
+
         Device.initDevicesList(this.dbInstKey);
+        Group.initGroupsList(this.dbInstKey);
 
         // Validate options
         for (const channel of this.options.network.channelList) {
@@ -194,9 +200,11 @@ class Controller extends events.EventEmitter {
 
         // Set backup timer to 1 day.
         this.backupTimer = setInterval(() => this.backup(), 86400000);
+        // this.backupTimer = setInterval(() => this.backup(), 60000);
 
         // Set database save timer to 1 hour.
         this.databaseSaveTimer = setInterval(() => this.databaseSave(), 3600000);
+        // this.databaseSaveTimer = setInterval(() => this.databaseSave(), 50000);
 
         this.touchlink = new Touchlink(this.adapter);
 
@@ -314,6 +322,7 @@ class Controller extends events.EventEmitter {
     }
 
     private databaseSave(): void {
+        console.log('Saving all databases ', this.dbInstKey);
         for (const device of Device.all(this.dbInstKey)) {
             device.save();
         }

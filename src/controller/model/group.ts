@@ -33,6 +33,12 @@ class Group extends Entity {
     // the same instance is returned.
     private static groups: {[dbInstKey: string]: {[groupID: number]: Group}} = null;
 
+    public static initGroupsList(dbInstKey: string) {
+        if (!Group.groups) {
+            Group.groups = {};
+        }
+    }
+
     private constructor(databaseID: number, groupID: number, members: Set<Endpoint>, meta: KeyValue, dbInstKey: string) {
         super();
         this.databaseID = databaseID;
@@ -68,8 +74,8 @@ class Group extends Entity {
     }
 
     private static loadFromDatabaseIfNecessary(dbInstKey: string): void {
-        if (!Group.groups) {
-            Group.groups = {};
+        if (!Group.groups[dbInstKey]) {
+            Group.groups[dbInstKey] = {};
             const entries = Entity.databases[dbInstKey].getEntries(['Group']);
             for (const entry of entries) {
                 const group = Group.fromDatabaseEntry(dbInstKey, entry);
