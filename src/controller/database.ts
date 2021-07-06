@@ -43,8 +43,6 @@ class Database {
         if (!this.entries[DatabaseEntry.id]) {
             if (!forceInsert) {
                 throw new Error(`DatabaseEntry with ID '${DatabaseEntry.id}' does not exist`);
-            } else {
-                this.entries = {};
             }
         }
 
