@@ -13,6 +13,7 @@ interface SocketOptions {
     getCustomParser: () => any;
     onReady: () => void;
     onConnect: (client: net.Socket) => void;
+    onReconnect: (client: net.Socket) => void;
     onClose: () => void;
     onError: (error: any) => void;
     onData: (data: Buffer) => Promise<Buffer | null>;

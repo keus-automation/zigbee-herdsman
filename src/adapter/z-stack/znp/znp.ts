@@ -53,6 +53,10 @@ const autoDetectDefinitions = [
     {manufacturer: 'Electrolama', vendorId: '0403', productId: '6015'}, // ZZH
 ];
 
+interface CustomSocket extends net.Socket {
+    initialised?: boolean;
+}
+
 class Znp extends events.EventEmitter {
     private path: string;
     private baudRate: number;
@@ -61,7 +65,7 @@ class Znp extends events.EventEmitter {
 
     private portType: 'serial' | 'socket';
     private serialPort: SerialPort;
-    private socketPort: net.Socket;
+    private socketPort: CustomSocket;
     private unpiWriter: UnpiWriter;
     private unpiParser: UnpiParser;
     private initialized: boolean;
@@ -200,8 +204,15 @@ class Znp extends events.EventEmitter {
         return new Promise((resolve, reject): void => {
             this.socketPort.on('connect', () => {
                 debug.log('Socket connected');
-                if (this.socketOptions && this.socketOptions.onConnect) {
-                    this.socketOptions.onConnect(this.socketPort);
+                if (this.socketPort.initialised) {
+                    if (this.socketOptions && this.socketOptions.onReconnect) {
+                        this.socketOptions.onReconnect(this.socketPort);
+                    }
+                } else {
+                    this.socketPort.initialised = true;
+                    if (this.socketOptions && this.socketOptions.onConnect) {
+                        this.socketOptions.onConnect(this.socketPort);
+                    }
                 }
             });
 
@@ -220,13 +231,15 @@ class Znp extends events.EventEmitter {
 
             this.socketPort.once('close', this.onPortClose);
 
-            this.socketPort.on('error', function () {
+            this.socketPort.on('error', async function () {
                 debug.log('Socket error');
                 reject(new Error(`Error while opening socket`));
                 self.initialized = false;
                 
                 if (self.socketOptions && self.socketOptions.onError) {
                     self.socketOptions.onError('socket error');
+                    await Wait(4000);
+                    self.socketPort.connect(info.port, info.host);
                 }
             });
 
