@@ -321,6 +321,23 @@ class Controller extends events.EventEmitter {
         await this.adapter.stop();
     }
 
+    public async forceStop(): Promise<void> {
+        this.stopping = true;
+
+        // Unregister adapter events
+        this.adapter.removeAllListeners(AdapterEvents.Events.deviceJoined);
+        this.adapter.removeAllListeners(AdapterEvents.Events.zclData);
+        this.adapter.removeAllListeners(AdapterEvents.Events.rawData);
+        this.adapter.removeAllListeners(AdapterEvents.Events.disconnected);
+        this.adapter.removeAllListeners(AdapterEvents.Events.deviceAnnounce);
+        this.adapter.removeAllListeners(AdapterEvents.Events.deviceLeave);
+
+        clearInterval(this.backupTimer);
+        clearInterval(this.databaseSaveTimer);
+
+        await this.adapter.stop();
+    }
+
     private databaseSave(): void {
         console.log('Saving all databases ', this.dbInstKey);
         for (const device of Device.all(this.dbInstKey)) {
