@@ -76,6 +76,8 @@ class DeconzAdapter extends Adapter {
         setTimeout(() => {that.checkCoordinatorSimpleDescriptor(false);}, 3000);
     }
 
+    public async forceRemoveDevice(ieeeAddr: string): Promise<void> {}
+
     public static async isValidPath(path: string): Promise<boolean> {
         return Driver.isValidPath(path);
     }

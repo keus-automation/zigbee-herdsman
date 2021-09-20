@@ -120,8 +120,8 @@ class Controller extends events.EventEmitter {
             throw new Error(`ExtendedPanID must be 8 digits long, got ${this.options.network.extendedPanID.length}.`);
         }
 
-        if (this.options.network.panID >= 0xFFFF || this.options.network.panID <= 0) {
-            throw new Error(`PanID must have a value of 0x0001 (1) - 0xFFFE (65534), ` +
+        if (this.options.network.panID >= 0xFFFF || this.options.network.panID < 0) {
+            throw new Error(`PanID must have a value of 0x0000 (0) - 0xFFFE (65534), ` +
                 `got ${this.options.network.panID}.`);
         }
     }
@@ -374,6 +374,17 @@ class Controller extends events.EventEmitter {
         }
 
         return this.networkParametersCached;
+    }
+
+    public async forceRemoveDevice(ieeeAddr: string): Promise<void> {
+        await this.adapter.forceRemoveDevice(ieeeAddr);
+        debug.log(`Device leave '${ieeeAddr}'`);
+
+        const device = Device.byIeeeAddr(this.dbInstKey, ieeeAddr);
+        if (device) {
+            debug.log(`Removing device from database '${ieeeAddr}'`);
+            await device.removeFromDatabase();
+        }
     }
 
     /**
