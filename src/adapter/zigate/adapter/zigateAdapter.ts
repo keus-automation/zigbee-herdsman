@@ -67,6 +67,8 @@ class ZiGateAdapter extends Adapter {
         this.driver.on('DeviceAnnounce', this.deviceAnnounceListener.bind(this));
     }
 
+    public async forceRemoveDevice(ieeeAddr: string): Promise<void> {}
+
     /**
      * Adapter methods
      */

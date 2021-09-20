@@ -43,6 +43,8 @@ class EZSPAdapter extends Adapter {
         this.driver.on('incomingMessage', this.processMessage.bind(this));
     }
 
+    public async forceRemoveDevice(ieeeAddr: string): Promise<void> {}
+
     private async processMessage(frame: any) {
         // todo
         debug(`processMessage: ${JSON.stringify(frame)}`);
