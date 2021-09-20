@@ -706,7 +706,7 @@ class ZStackAdapter extends Adapter {
         // const resultSecDeviceRemove = await this.znp.request(Subsystem.ZDO, 'secDeviceRemove', { extaddr: ieeeAddr });
 
         debug.log('Removed Link Key', resultRemoveLinkKey);
-        debug.log('Sec Device Remove', resultSecDeviceRemove);
+        // debug.log('Sec Device Remove', resultSecDeviceRemove);
     }
 
     /**
