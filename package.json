@@ -71,7 +71,7 @@
   "license": "MIT",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
-  "name": "zigbee-herdsman",
+  "name": "@keus-automation/zigbee-herdsman",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/Koenkk/zigbee-herdsman.git"
