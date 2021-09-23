@@ -8,7 +8,7 @@ import {Wait, Queue, Waitress, RealpathSync} from '../../../utils';
 
 import SerialPortUtils from '../../serialPortUtils';
 import SocketPortUtils from '../../socketPortUtils';
-import {SocketOptions} from '../../tstype';
+import { SocketOptions, CustomTransportOptions } from '../../tstype';
 
 import * as Constants from '../constants';
 
@@ -62,8 +62,13 @@ class Znp extends events.EventEmitter {
     private baudRate: number;
     private rtscts: boolean;
     private socketOptions: SocketOptions;
+    private customTransportOptions: CustomTransportOptions;
+    private customTransportEventListeners: {
+        ready: any,
+        incoming: any
+    };
 
-    private portType: 'serial' | 'socket';
+    private portType: 'serial' | 'socket' | 'customtransport';
     private serialPort: SerialPort;
     private socketPort: CustomSocket;
     private unpiWriter: UnpiWriter;
@@ -72,14 +77,16 @@ class Znp extends events.EventEmitter {
     private queue: Queue;
     private waitress: Waitress<ZpiObject, WaitressMatcher>;
 
-    public constructor(path: string, baudRate: number, rtscts: boolean, socketOptions?: SocketOptions) {
+    public constructor(path: string, baudRate: number, rtscts: boolean, socketOptions?: SocketOptions, customTransportOptions?: CustomTransportOptions) {
         super();
 
         this.path = path;
         this.baudRate = typeof baudRate === 'number' ? baudRate : 115200;
         this.rtscts = typeof rtscts === 'boolean' ? rtscts : false;
-        this.portType = SocketPortUtils.isTcpPath(path) ? 'socket' : 'serial';
+        this.portType = SocketPortUtils.isTcpPath(path) ? 'socket' :
+            (path === 'custom' ? 'customtransport' : 'serial');
         this.socketOptions = socketOptions;
+        this.customTransportOptions = customTransportOptions;
 
         this.initialized = false;
 
@@ -88,6 +95,10 @@ class Znp extends events.EventEmitter {
 
         this.onUnpiParsed = this.onUnpiParsed.bind(this);
         this.onPortClose = this.onPortClose.bind(this);
+        this.customTransportEventListeners = {
+            ready: null,
+            incoming: null
+        };
     }
 
     private log(type: Type, message: string): void {
@@ -129,7 +140,8 @@ class Znp extends events.EventEmitter {
     }
 
     public async open(): Promise<void> {
-        return this.portType === 'serial' ? this.openSerialPort() : this.openSocketPort();
+        return this.portType === 'serial' ? this.openSerialPort() :
+            (this.portType === 'socket' ? this.openSocketPort() : this.openCustomTransport());
     }
 
     private async openSerialPort(): Promise<void> {
@@ -247,6 +259,40 @@ class Znp extends events.EventEmitter {
         });
     }
 
+    private async openCustomTransport(): Promise<void> {
+        const self = this;
+        debug.log(`Opening custom transport`, this.customTransportOptions);
+        let eventEmitter = this.customTransportOptions.eventEmitter;
+
+        this.unpiWriter = new UnpiWriter();
+        this.unpiWriter.on('data', function(data) {
+            eventEmitter.emit('outgoing', data);
+        });
+
+        this.unpiParser = new UnpiParser();
+        this.customTransportEventListeners.incoming = this.customTransportIncomingDataListener.bind(this);
+        eventEmitter.addListener('incoming', this.customTransportEventListeners.incoming);
+
+        this.unpiParser.on('parsed', this.onUnpiParsed);
+
+        return new Promise((resolve, reject): void => {
+            this.customTransportEventListeners.ready = this.customTransportReadyListener.bind(this, resolve);
+            eventEmitter.addListener('ready', this.customTransportEventListeners.ready);
+            
+            eventEmitter.emit('init');
+        });
+    }
+
+    private customTransportIncomingDataListener(data: Buffer) {
+        this.unpiParser.write(data);
+    }
+
+    private customTransportReadyListener = async (resolve: Function) => {
+        await this.skipBootloader();
+        this.initialized = true;
+        resolve();
+    }
+
     private async skipBootloader(): Promise<void> {
         // Skip bootloader on some CC2652 devices (e.g. zzh-p)
         if (this.serialPort) {
@@ -278,6 +324,10 @@ class Znp extends events.EventEmitter {
     public static async isValidPath(path: string): Promise<boolean> {
         // For TCP paths we cannot get device information, therefore we cannot validate it.
         if (SocketPortUtils.isTcpPath(path)) {
+            return false;
+        }
+
+        if (path === 'custom') {
             return false;
         }
 
@@ -313,8 +363,13 @@ class Znp extends events.EventEmitter {
                             this.emit('close');
                         });
                     });
-                } else {
+                } else if (this.portType === 'socket') {
                     this.socketPort.destroy();
+                    resolve();
+                } else {
+                    this.customTransportOptions.eventEmitter.removeListener('ready', this.customTransportEventListeners.ready);
+                    this.customTransportOptions.eventEmitter.removeListener('incoming', this.customTransportEventListeners.incoming);
+                    this.customTransportOptions.eventEmitter.emit('closed');
                     resolve();
                 }
             } else {
