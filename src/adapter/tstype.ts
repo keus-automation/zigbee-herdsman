@@ -1,4 +1,5 @@
 import * as net from 'net';
+import {EventEmitter} from 'stream';
 
 interface NetworkOptions {
     panID: number;
@@ -20,12 +21,17 @@ interface SocketOptions {
     onWrite: (data: Buffer) => Buffer;
 }
 
+interface CustomTransportOptions {
+    eventEmitter: EventEmitter;
+}
+
 interface SerialPortOptions {
     baudRate?: number;
     rtscts?: boolean;
     path?: string;
     adapter?: 'zstack' | 'deconz' | 'zigate' | 'ezsp' | 'auto';
     socketOptions?: SocketOptions;
+    customTransportOptions?: CustomTransportOptions;
 }
 
 interface AdapterOptions {
@@ -113,5 +119,5 @@ interface NetworkParameters {
 export {
     SerialPortOptions, NetworkOptions, Coordinator, CoordinatorVersion, NodeDescriptor,
     DeviceType, ActiveEndpoints, SimpleDescriptor, LQI, LQINeighbor, RoutingTable, Backup, NetworkParameters,
-    StartResult, RoutingTableEntry, AdapterOptions, SocketOptions
+    StartResult, RoutingTableEntry, AdapterOptions, SocketOptions, CustomTransportOptions
 };
