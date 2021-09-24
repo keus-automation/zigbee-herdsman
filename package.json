@@ -1,7 +1,8 @@
 {
   "author": {
     "name": "Koen Kanters",
-    "email": "koenkanters94@gmail.com"
+    "email": "koenkanters94@gmail.com",
+    "co-author": "Ashwik Keus"
   },
   "bugs": {
     "url": "https://github.com/koenkk/zigbee-herdsman/issues"
@@ -63,7 +64,7 @@
     "typedoc-plugin-sourcefile-url": "*",
     "typescript": "*"
   },
-  "homepage": "https://github.com/Koenkk/zigbee-herdsman",
+  "homepage": "https://github.com/keus-automation/zigbee-herdsman",
   "keywords": [
     "zigbee",
     "cc253x"
@@ -74,7 +75,7 @@
   "name": "@keus-automation/zigbee-herdsman",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Koenkk/zigbee-herdsman.git"
+    "url": "git@github.com:keus-automation/zigbee-herdsman.git"
   },
   "scripts": {
     "build": "./node_modules/.bin/tsc",
