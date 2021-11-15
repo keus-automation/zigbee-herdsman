@@ -477,9 +477,9 @@ class ZStackAdapter extends Adapter {
                 return result;
             } catch (error) {
                 debug('Response timeout (%s:%d,%d)', ieeeAddr, networkAddress, responseAttempt);
-                if (responseAttempt === 2) {
+                if (responseAttempt === 1) {
                     await this.discoverRoute(networkAddress);
-                } else if (responseAttempt > 3) {
+                } else if (responseAttempt > 2) {
                     throw new Error('Request timed out');
                 }
 
