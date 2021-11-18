@@ -486,7 +486,7 @@ class Device extends Entity {
             } catch (error) {
                 debug.log(`Error with Keus device pairing, Simple Descriptor Request Failed`);
 
-                return;
+                throw new Error('Keus Interview - Simple Descriptor Failed');
             }
         } else {
             this._keusDevice = false;
