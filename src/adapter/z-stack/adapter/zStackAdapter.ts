@@ -477,9 +477,9 @@ class ZStackAdapter extends Adapter {
                 return result;
             } catch (error) {
                 debug('Response timeout (%s:%d,%d)', ieeeAddr, networkAddress, responseAttempt);
-                if (responseAttempt === 2) {
+                if (responseAttempt === 1) {
                     await this.discoverRoute(networkAddress);
-                } else if (responseAttempt > 3) {
+                } else if (responseAttempt > 2) {
                     throw new Error('Request timed out');
                 }
 
@@ -706,8 +706,8 @@ class ZStackAdapter extends Adapter {
         const resultRemoveLinkKey = await this.znp.request(Subsystem.ZDO, 'removeLinkKey', { ieeeaddr: ieeeAddr });
         // const resultSecDeviceRemove = await this.znp.request(Subsystem.ZDO, 'secDeviceRemove', { extaddr: ieeeAddr });
 
-        debug.log('Removed Link Key', resultRemoveLinkKey);
-        // debug.log('Sec Device Remove', resultSecDeviceRemove);
+        debug('Removed Link Key', resultRemoveLinkKey);
+        // debug('Sec Device Remove', resultSecDeviceRemove);
     }
 
     /**
