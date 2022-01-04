@@ -199,7 +199,7 @@ class Controller extends events.EventEmitter {
         }
 
         // Set backup timer to 1 day.
-        this.backupTimer = setInterval(() => this.backup(), 86400000);
+        this.backupTimer = setInterval(() => this.backup(), 21600000);
         // this.backupTimer = setInterval(() => this.backup(), 60000);
 
         // Set database save timer to 1 hour.
