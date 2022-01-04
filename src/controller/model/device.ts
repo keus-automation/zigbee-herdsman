@@ -636,7 +636,7 @@ class Device extends Entity {
             Entity.databases[this._dbInstKey].remove(this.ID);
         }
 
-        delete Device.devices[this.ieeeAddr];
+        delete Device.devices[this._dbInstKey][this.ieeeAddr];
     }
 
     public async lqi(): Promise<LQI> {

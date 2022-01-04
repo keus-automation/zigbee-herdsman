@@ -590,7 +590,7 @@ class Controller extends events.EventEmitter {
                 return;
             }
         } else{
-            const eventData: Events.DeviceRejoinedPayload = { device, networkAddressChanged: true };
+            const eventData: Events.DeviceRejoinedPayload = { device, networkAddressChanged: false };
             this.emit(Events.Events.deviceRejoined, eventData);
         }
 
