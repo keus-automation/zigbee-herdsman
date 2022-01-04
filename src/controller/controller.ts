@@ -367,13 +367,17 @@ class Controller extends events.EventEmitter {
         return this.adapter.getCoordinatorVersion();
     }
 
-    public async getNetworkParameters(): Promise<AdapterTsType.NetworkParameters> {
-        // Cache network parameters as they don't change anymore after start.
-        if (!this.networkParametersCached) {
+    public async getNetworkParameters(forceFetch?: boolean): Promise<AdapterTsType.NetworkParameters> {
+        if (forceFetch) {
             this.networkParametersCached = await this.adapter.getNetworkParameters();
-        }
+        } else {
+            // Cache network parameters as they don't change anymore after start.
+            if (!this.networkParametersCached) {
+                this.networkParametersCached = await this.adapter.getNetworkParameters();
+            }
 
-        return this.networkParametersCached;
+            return this.networkParametersCached;
+        }
     }
 
     public async forceRemoveDevice(ieeeAddr: string): Promise<void> {
