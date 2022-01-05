@@ -375,9 +375,9 @@ class Controller extends events.EventEmitter {
             if (!this.networkParametersCached) {
                 this.networkParametersCached = await this.adapter.getNetworkParameters();
             }
-
-            return this.networkParametersCached;
         }
+
+        return this.networkParametersCached;
     }
 
     public async forceRemoveDevice(ieeeAddr: string): Promise<void> {
