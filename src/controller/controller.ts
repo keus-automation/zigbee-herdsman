@@ -511,7 +511,11 @@ class Controller extends events.EventEmitter {
             device.removeFromDatabase();
         }
 
-        const data: Events.DeviceLeavePayload = { ieeeAddr: payload.ieeeAddr };
+        const data: Events.DeviceLeavePayload = {
+            ieeeAddr: payload.ieeeAddr,
+            networkAddr: payload.networkAddress,
+            rejoin: payload.rejoin
+        };
         this.emit(Events.Events.deviceLeave, data);
     }
 
