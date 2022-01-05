@@ -28,6 +28,7 @@ interface NetworkAddressPayload {
 interface DeviceLeavePayload {
     networkAddress: number;
     ieeeAddr: string;
+    rejoin?: boolean;
 }
 
 interface ZclDataPayload {

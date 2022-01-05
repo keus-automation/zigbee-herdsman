@@ -37,6 +37,8 @@ interface DeviceAnnouncePayload {
 
 interface DeviceLeavePayload {
     ieeeAddr: string;
+    networkAddr?: number;
+    rejoin?: boolean;
 }
 
 interface PermitJoinChangedPayload {

@@ -199,7 +199,7 @@ class Controller extends events.EventEmitter {
         }
 
         // Set backup timer to 1 day.
-        this.backupTimer = setInterval(() => this.backup(), 86400000);
+        this.backupTimer = setInterval(() => this.backup(), 21600000);
         // this.backupTimer = setInterval(() => this.backup(), 60000);
 
         // Set database save timer to 1 hour.
@@ -367,13 +367,17 @@ class Controller extends events.EventEmitter {
         return this.adapter.getCoordinatorVersion();
     }
 
-    public async getNetworkParameters(): Promise<AdapterTsType.NetworkParameters> {
-        // Cache network parameters as they don't change anymore after start.
-        if (!this.networkParametersCached) {
+    public async getNetworkParameters(forceFetch?: boolean): Promise<AdapterTsType.NetworkParameters> {
+        if (forceFetch) {
             this.networkParametersCached = await this.adapter.getNetworkParameters();
-        }
+        } else {
+            // Cache network parameters as they don't change anymore after start.
+            if (!this.networkParametersCached) {
+                this.networkParametersCached = await this.adapter.getNetworkParameters();
+            }
 
-        return this.networkParametersCached;
+            return this.networkParametersCached;
+        }
     }
 
     public async forceRemoveDevice(ieeeAddr: string): Promise<void> {
@@ -507,7 +511,11 @@ class Controller extends events.EventEmitter {
             device.removeFromDatabase();
         }
 
-        const data: Events.DeviceLeavePayload = { ieeeAddr: payload.ieeeAddr };
+        const data: Events.DeviceLeavePayload = {
+            ieeeAddr: payload.ieeeAddr,
+            networkAddr: payload.networkAddress,
+            rejoin: payload.rejoin
+        };
         this.emit(Events.Events.deviceLeave, data);
     }
 
@@ -574,24 +582,6 @@ class Controller extends events.EventEmitter {
 
             const eventData: Events.DeviceJoinedPayload = { device };
             this.emit(Events.Events.deviceJoined, eventData);
-        } else if (device.networkAddress !== payload.networkAddress) {
-            debug.log(
-                `Device '${payload.ieeeAddr}' is already in database with different networkAddress, ` +
-                `updating networkAddress`
-            );
-            device.networkAddress = payload.networkAddress;
-            device.save();
-
-            const eventData: Events.DeviceRejoinedPayload = { device, networkAddressChanged: true };
-            this.emit(Events.Events.deviceRejoined, eventData);
-
-            if (device.manufacturerID && device.manufacturerID == 0xAAAA) {
-                device.receivedMessage();
-                return;
-            }
-        } else{
-            const eventData: Events.DeviceRejoinedPayload = { device, networkAddressChanged: true };
-            this.emit(Events.Events.deviceRejoined, eventData);
         }
 
         device.receivedMessage();
@@ -616,6 +606,21 @@ class Controller extends events.EventEmitter {
                 `Not interviewing '${payload.ieeeAddr}', completed '${device.interviewCompleted}', ` +
                 `in progress '${device.interviewing}'`
             );
+
+            let networkAddressChanged = false;
+            if (device.networkAddress !== payload.networkAddress) {
+                debug.log(
+                    `Device '${payload.ieeeAddr}' is already in database with different networkAddress, ` +
+                    `updating networkAddress`
+                );
+                device.networkAddress = payload.networkAddress;
+                device.save();
+
+                networkAddressChanged = true;
+            }
+
+            const eventData: Events.DeviceRejoinedPayload = {device, networkAddressChanged: networkAddressChanged};
+            this.emit(Events.Events.deviceRejoined, eventData);
         }
     }
 
