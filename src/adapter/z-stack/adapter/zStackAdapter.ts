@@ -771,6 +771,7 @@ class ZStackAdapter extends Adapter {
                     const payload: Events.DeviceLeavePayload = {
                         networkAddress: object.payload.srcaddr,
                         ieeeAddr: object.payload.extaddr,
+                        rejoin: object.payload.rejoin
                     };
 
                     this.emit(Events.Events.deviceLeave, payload);
