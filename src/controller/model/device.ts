@@ -130,7 +130,7 @@ class Device extends Entity {
         manufacturerID: number, endpoints: Endpoint[], manufacturerName: string,
         powerSource: string, modelID: string, applicationVersion: number, stackVersion: number, zclVersion: number,
         hardwareVersion: number, dateCode: string, softwareBuildID: string, interviewCompleted: boolean, meta: KeyValue,
-        lastSeen: number, dbInstKey: string
+        lastSeen: number, dbInstKey: string, keusDevice?: boolean
     ) {
         super();
         this.ID = ID;
@@ -154,6 +154,7 @@ class Device extends Entity {
         this.meta = meta;
         this._lastSeen = lastSeen;
         this._dbInstKey = dbInstKey;
+        this._keusDevice = keusDevice;
     }
 
     public async createEndpoint(ID: number): Promise<Endpoint> {
@@ -261,7 +262,7 @@ class Device extends Entity {
             entry.id, entry.type, ieeeAddr, networkAddress, entry.manufId, endpoints,
             entry.manufName, entry.powerSource, entry.modelId, entry.appVersion,
             entry.stackVersion, entry.zclVersion, entry.hwVersion, entry.dateCode, entry.swBuildId,
-            entry.interviewCompleted, meta, entry.lastSeen || null, dbInstKey
+            entry.interviewCompleted, meta, entry.lastSeen || null, dbInstKey, entry.keusDevice || true
         );
     }
 
@@ -278,7 +279,7 @@ class Device extends Entity {
             modelId: this.modelID, epList, endpoints, appVersion: this.applicationVersion,
             stackVersion: this.stackVersion, hwVersion: this.hardwareVersion, dateCode: this.dateCode,
             swBuildId: this.softwareBuildID, zclVersion: this.zclVersion, interviewCompleted: this.interviewCompleted,
-            meta: this.meta, lastSeen: this.lastSeen,
+            meta: this.meta, lastSeen: this.lastSeen, keusDevice: this._keusDevice
         };
     }
 
@@ -486,7 +487,7 @@ class Device extends Entity {
             } catch (error) {
                 debug.log(`Error with Keus device pairing, Simple Descriptor Request Failed`);
 
-                return;
+                throw new Error('Keus Interview - Simple Descriptor Failed');
             }
         } else {
             this._keusDevice = false;
@@ -636,7 +637,7 @@ class Device extends Entity {
             Entity.databases[this._dbInstKey].remove(this.ID);
         }
 
-        delete Device.devices[this.ieeeAddr];
+        delete Device.devices[this._dbInstKey][this.ieeeAddr];
     }
 
     public async lqi(): Promise<LQI> {

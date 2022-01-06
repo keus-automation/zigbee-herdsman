@@ -6,3 +6,5 @@ temp/
 .history/
 package-lock.json
 .remote-sync.json
+.pnpm-store
+.DS_Store

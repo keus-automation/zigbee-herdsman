@@ -18,7 +18,7 @@ class Parser extends stream.Transform {
     public _transform(chunk: Buffer, _: string, cb: () => void): void {
         debug(`<-- [${[...chunk]}]`);
         if (this.customParser) {
-            console.log(this.customParser);
+            //console.log(this.customParser);
             let znpData = this.customParser(chunk);
 
             if (znpData) {
