@@ -88,6 +88,15 @@ class ZStackAdapter extends Adapter {
         this.znp.on('close', this.onZnpClose.bind(this));
     }
 
+    pingZNPHost = async () => {
+        try {
+            await this.znp.request(Subsystem.SYS, 'ping', {capabilities: 1});
+            return true;
+        } catch (e) {
+            return false;
+        }
+    }
+
     /**
      * Adapter methods
      */
