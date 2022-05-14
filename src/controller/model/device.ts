@@ -27,7 +27,10 @@ interface RoutingTable {
     table: {destinationAddress: number; status: string; nextHop: number}[];
 }
 
-const KEUS_DEVICE_ENDPOINT = 15;
+const KEUS_ENDPOINTSMAP: {[key:number]: number} = {
+    0xAAAA: 15,
+    4648: 1
+}
 
 class Device extends Entity {
     private readonly ID: number;
@@ -460,12 +463,14 @@ class Device extends Entity {
             throw new Error(`Interview failed because can not get node descriptor ('${this.ieeeAddr}')`);
         }
 
+        let keusEndPoint: number = KEUS_ENDPOINTSMAP[this._manufacturerID];
+
         // this is keus specific manufacturer id, interview will be slighty modified for keus based devices
-        if (this._manufacturerID == 0xAAAA) {
+        if (keusEndPoint) {
             try {
-                let simpleDescriptor = await Entity.adapters[this._dbInstKey].simpleDescriptor(this.networkAddress, KEUS_DEVICE_ENDPOINT);
+                let simpleDescriptor = await Entity.adapters[this._dbInstKey].simpleDescriptor(this.networkAddress, keusEndPoint);
                 let endpoint = Endpoint.create(
-                    KEUS_DEVICE_ENDPOINT,
+                    keusEndPoint,
                     simpleDescriptor.profileID,
                     simpleDescriptor.deviceID,
                     simpleDescriptor.inputClusters,
@@ -481,13 +486,62 @@ class Device extends Entity {
                 this._keusDevice = true;
                 debug.log(`Keus Interview - got simple descriptor for endpoint '${endpoint.ID}' device '${this.ieeeAddr}'`);
 
+
+                if (keusEndPoint === 1) {
+                    debug.log(`Interview - IAS - enrolling '${this.ieeeAddr}' endpoint '${endpoint.ID}'`);
+
+                    const stateBefore = await endpoint.read('ssIasZone', ['iasCieAddr', 'zoneState']);
+                    debug.log(`Interview - IAS - before enrolling state: '${JSON.stringify(stateBefore)}'`);
+
+                    // Do not enroll when device has already been enrolled
+                    const coordinator = Device.byType(this._dbInstKey, 'Coordinator')[0];
+                    if (stateBefore.zoneState !== 1 || stateBefore.iasCieAddr !== coordinator.ieeeAddr) {
+                        debug.log(`Interview - IAS - not enrolled, enrolling`);
+
+                        await endpoint.write('ssIasZone', {'iasCieAddr': coordinator.ieeeAddr});
+                        debug.log(`Interview - IAS - wrote iasCieAddr`);
+
+                        // There are 2 enrollment procedures:
+                        // - Auto enroll: coordinator has to send enrollResponse without receiving an enroll request
+                        //                this case is handled below.
+                        // - Manual enroll: coordinator replies to enroll request with an enroll response.
+                        //                  this case in hanled in onZclData().
+                        // https://github.com/Koenkk/zigbee2mqtt/issues/4569#issuecomment-706075676
+                        await Wait(500);
+                        debug.log(`IAS - '${this.ieeeAddr}' sending enroll response (auto enroll)`);
+                        const payload = {enrollrspcode: 0, zoneid: 23};
+                        await endpoint.command('ssIasZone', 'enrollRsp', payload, {disableDefaultResponse: true});
+
+                        let enrolled = false;
+                        for (let attempt = 0; attempt < 20; attempt++) {
+                            await Wait(500);
+                            const stateAfter = await endpoint.read('ssIasZone', ['iasCieAddr', 'zoneState']);
+                            debug.log(`Interview - IAS - after enrolling state (${attempt}): '${JSON.stringify(stateAfter)}'`);
+                            if (stateAfter.zoneState === 1) {
+                                enrolled = true;
+                                break;
+                            }
+                        }
+
+                        if (enrolled) {
+                            debug.log(`Interview - IAS successfully enrolled '${this.ieeeAddr}' endpoint '${endpoint.ID}'`);
+                        } else {
+                            throw new Error(
+                                `Interview failed because of failed IAS enroll (zoneState didn't change ('${this.ieeeAddr}')`
+                            );
+                        }
+                    } else {
+                        debug.log(`Interview - IAS - already enrolled, skipping enroll`);
+                    }
+                }
+
                 this.save();
 
                 return;
             } catch (error) {
                 debug.log(`Error with Keus device pairing, Simple Descriptor Request Failed`);
 
-                throw new Error('Keus Interview - Simple Descriptor Failed');
+                throw new Error('Keus Interview - Simple Descriptor Failed Or IAS Failed');
             }
         } else {
             this._keusDevice = false;
