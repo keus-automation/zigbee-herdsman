@@ -25,7 +25,7 @@ export const toUnifiedBackup = async (backup: Models.Backup): Promise<Models.Uni
             source: `${packageInfo.name}@${packageInfo.version}`,
             internal: {
                 date: new Date().toISOString(),
-                znpVersion: backup.znp?.version || undefined
+                znpVersion: [null, undefined].includes(backup.znp?.version) ? undefined : backup.znp?.version
             }
         },
         stack_specific: {
@@ -51,6 +51,7 @@ export const toUnifiedBackup = async (backup: Models.Backup): Promise<Models.Uni
             return {
                 nwk_address: nwkAddressBuffer.toString("hex"),
                 ieee_address: device.ieeeAddress.toString("hex"),
+                is_child: device.isDirectChild,
                 link_key: !device.linkKey ? undefined : {
                     key: device.linkKey.key.toString("hex"),
                     rx_counter: device.linkKey.rxCounter,
@@ -86,8 +87,9 @@ export const fromUnifiedBackup = (backup: Models.UnifiedBackupStorage): Models.B
         securityLevel: backup.security_level || null,
         networkUpdateId: backup.nwk_update_id || null,
         devices: backup.devices.map(device => ({
-            networkAddress: Buffer.from(device.nwk_address, "hex").readUInt16BE(),
+            networkAddress: device.nwk_address ? Buffer.from(device.nwk_address, "hex").readUInt16BE() : Buffer.from("fffe", "hex").readUInt16BE(),
             ieeeAddress: Buffer.from(device.ieee_address, "hex"),
+            isDirectChild: typeof device.is_child === "boolean" ? device.is_child : true,
             linkKey: !device.link_key ? undefined : {
                 key: Buffer.from(device.link_key.key, "hex"),
                 rxCounter: device.link_key.rx_counter,
@@ -116,7 +118,7 @@ export const fromLegacyBackup = (backup: Models.LegacyBackupStorage): Models.Bac
     } else if (!backup.data.ZCD_NV_EX_NWK_SEC_MATERIAL_TABLE && !backup.data.ZCD_NV_LEGACY_NWK_SEC_MATERIAL_TABLE_START) {
         throw new Error("Backup corrupted - missing network security material table");
     } else if (!backup.data.ZCD_NV_EXTADDR) {
-        throw new Error("Backup corrupted - missing adapter IEEE address NV entry"); 
+        throw new Error("Backup corrupted - missing adapter IEEE address NV entry");
     }
     const ieeeAddress = Buffer.from(backup.data.ZCD_NV_EXTADDR.value).reverse();
     const nib = ZStackStructs.nib(Buffer.from(backup.data.ZCD_NV_NIB.value));

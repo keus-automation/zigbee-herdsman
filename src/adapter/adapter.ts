@@ -112,10 +112,6 @@ abstract class Adapter extends events.EventEmitter {
 
     public abstract reset(type: 'soft' | 'hard'): Promise<void>;
 
-    public abstract supportsLED(): Promise<boolean>;
-
-    public abstract setLED(enabled: boolean): Promise<void>;
-
     public abstract supportsBackup(): Promise<boolean>;
 
     public abstract backup(): Promise<Models.Backup | any>;
@@ -123,6 +119,8 @@ abstract class Adapter extends events.EventEmitter {
     public abstract getNetworkParameters(): Promise<TsType.NetworkParameters>;
 
     public abstract setTransmitPower(value: number): Promise<void>;
+
+    public abstract addInstallCode(ieeeAddress: string, key: Buffer): Promise<void>;
 
     public abstract waitFor(
         networkAddress: number, endpoint: number, frameType: FrameType, direction: Direction,

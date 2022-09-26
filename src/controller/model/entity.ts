@@ -1,7 +1,8 @@
 import Database from '../database';
 import {Adapter} from '../../adapter';
+import events from 'events';
 
-abstract class Entity {
+abstract class Entity extends events.EventEmitter {
     protected static databases: {[key: string]: Database} = {};
     protected static adapters: {[key: string]: Adapter} = {};
 

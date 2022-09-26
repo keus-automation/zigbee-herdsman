@@ -227,6 +227,10 @@ class ZclFrame {
         for (const parameter of command.parameters) {
             const options: BuffaloTsType.Options = {payload};
 
+            if (!this.conditionsValid(parameter, payload, buffalo.getBuffer().length - buffalo.getPosition())) {
+                continue;
+            }
+
             if (ListTypes.includes(parameter.type)) {
                 const lengthParameter = command.parameters[command.parameters.indexOf(parameter) - 1];
                 const length = payload[lengthParameter.name];
@@ -338,6 +342,10 @@ class ZclFrame {
                     return entry.status === condition.value;
                 } else if (condition.type == 'directionEquals') {
                     return entry.direction !== condition.value;
+                } else if(condition.type == 'bitMaskSet') {
+                    return (entry[condition.param] & condition.mask) !== condition.mask;
+                } else if(condition.type == 'bitFieldEnum') {
+                    return ((entry[condition.param] >> condition.offset) & ((1<<condition.size)-1)) !== condition.value;
                 } else if (remainingBufferBytes != null && condition.type == 'minimumRemainingBufferBytes') {
                     return remainingBufferBytes < condition.value;
                 } else  {
@@ -365,13 +373,16 @@ class ZclFrame {
     }
 
     // List of clusters is not completed, feel free to add more.
-    public isCluster(clusterName: 'genTime' | 'genAnalogInput' | 'genBasic' | 'genGroups' | 'ssIasZone'): boolean {
+    public isCluster(
+        clusterName: 'genTime' | 'genAnalogInput' | 'genBasic' | 'genGroups' | 'genPollCtrl' | 'ssIasZone'
+    ): boolean {
         return this.Cluster.name === clusterName;
     }
 
     // List of commands is not completed, feel free to add more.
     public isCommand(
-        commandName: 'read' | 'report' | 'readRsp' | 'remove' | 'add' | 'write' | 'enrollReq' | 'configReport'
+        commandName: 'read' | 'report' | 'readRsp' | 'remove' | 'add' | 'write' | 'enrollReq' | 'configReport' |
+            'checkin' | 'writeRsp'
     ): boolean {
         return this.getCommand().name === commandName;
     }

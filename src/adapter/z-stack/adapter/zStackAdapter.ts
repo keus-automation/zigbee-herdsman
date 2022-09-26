@@ -16,6 +16,7 @@ import debounce from 'debounce';
 import {LoggerStub} from "../../../controller/logger-stub";
 import {ZnpAdapterManager} from "./manager";
 import * as Models from "../../../models";
+import assert from 'assert';
 
 const debug = Debug("zigbee-herdsman:adapter:zStack:adapter");
 const Subsystem = UnpiConstants.Subsystem;
@@ -62,7 +63,7 @@ class ZStackAdapter extends Adapter {
     };
     private closing: boolean;
     private queue: Queue;
-    private supportsLED_: boolean;
+    private supportsLED: boolean = null;
     private interpanLock: boolean;
     private interpanEndpointRegistered: boolean;
     private waitress: Waitress<Events.ZclDataPayload, WaitressMatcher>;
@@ -123,9 +124,6 @@ class ZStackAdapter extends Adapter {
             this.version = {"transportrev":2, "product":0, "majorrel":2, "minorrel":0, "maintrel":0, "revision":""};
         }
 
-        const zStack3x0 = this.version.product === ZnpVersion.zStack3x0;
-        this.supportsLED_ = !zStack3x0 || (zStack3x0 && parseInt(this.version.revision) >= 20210430);
-
         const concurrent = this.adapterOptions && this.adapterOptions.concurrent ?
             this.adapterOptions.concurrent :
             (this.version.product === ZnpVersion.zStack3x0 ? 16 : 2);
@@ -141,11 +139,21 @@ class ZStackAdapter extends Adapter {
                 backupPath: this.backupPath,
                 version: this.version.product,
                 greenPowerGroup: this.greenPowerGroup,
-                networkOptions: this.networkOptions
+                networkOptions: this.networkOptions,
+                adapterOptions: this.adapterOptions,
             },
             this.logger
         );
-        return this.adapterManager.start();
+
+        const startResult = this.adapterManager.start();
+
+        if (this.adapterOptions.disableLED) {
+            // Wait a bit for adapter to startup, otherwise led doesn't disable (tested with CC2531)
+            await Wait(200);
+            await this.setLED('disable');
+        }
+
+        return startResult;
     }
 
     public async stop(): Promise<void> {
@@ -207,6 +215,7 @@ class ZStackAdapter extends Adapter {
             this.checkInterpanLock();
             const payload = {addrmode, dstaddr , duration: seconds, tcsignificance: 0};
             await this.znp.request(Subsystem.ZDO, 'mgmtPermitJoinReq', payload);
+            await this.setLED(seconds == 0 ? 'off' : 'on');
         });
     }
 
@@ -222,19 +231,36 @@ class ZStackAdapter extends Adapter {
         }
     }
 
-    public async supportsLED(): Promise<boolean> {
-        return this.supportsLED_;
-    }
+    private async setLED(action: 'disable' | 'on' | 'off'): Promise<void> {
+        if (this.supportsLED == null) {
+            // Only zStack3x0 with 20210430 and greater support LED
+            const zStack3x0 = this.version.product === ZnpVersion.zStack3x0;
+            this.supportsLED = !zStack3x0 || (zStack3x0 && parseInt(this.version.revision) >= 20210430);
+        }
 
-    public async setLED(enabled: boolean): Promise<void> {
-        this.znp.request(Subsystem.UTIL, 'ledControl', {ledid: 3, mode: enabled ? 1 : 0}, null, 500).catch(() => {
-            // We cannot 100% correctly determine if an adapter supports LED. E.g. the zStack 1.2 20190608 fw supports
-            // led on the CC2531 but not on the CC2530. Therefore if a led request fails never thrown an error
-            // but instead mark the led as unsupported.
-            // https://github.com/Koenkk/zigbee-herdsman/issues/377
-            // https://github.com/Koenkk/zigbee2mqtt/issues/7693
-            this.supportsLED_ = false;
-        });
+        if (!this.supportsLED || (this.adapterOptions.disableLED && action !== 'disable')) {
+            return;
+        }
+
+        // Firmwares build on and after 20211029 should handle LED themselves
+        const firmwareControlsLed = parseInt(this.version.revision) >= 20211029;
+        const lookup = {
+            'disable': firmwareControlsLed ? {ledid: 0xFF, mode: 5} : {ledid: 3, mode: 0},
+            'on': firmwareControlsLed ? null : {ledid: 3, mode: 1},
+            'off': firmwareControlsLed ? null : {ledid: 3, mode: 0},
+        };
+
+        const payload = lookup[action];
+        if (payload) {
+            this.znp.request(Subsystem.UTIL, 'ledControl', payload, null, 500).catch(() => {
+                // We cannot 100% correctly determine if an adapter supports LED. E.g. the zStack 1.2 20190608
+                // fw supports led on the CC2531 but not on the CC2530. Therefore if a led request fails never thrown
+                // an error but instead mark the led as unsupported.
+                // https://github.com/Koenkk/zigbee-herdsman/issues/377
+                // https://github.com/Koenkk/zigbee2mqtt/issues/7693
+                this.supportsLED = false;
+            });
+        }
     }
 
     private async requestNetworkAddress(ieeeAddr: string): Promise<number> {
@@ -641,6 +667,12 @@ class ZStackAdapter extends Adapter {
         }, networkAddress);
     }
 
+    public async addInstallCode(ieeeAddress: string, key: Buffer): Promise<void> {
+        assert(this.version.product !== ZnpVersion.zStack12, 'Install code is not supported for ZStack 1.2 adapter');
+        const payload = {installCodeFormat: key.length === 18 ? 1 : 2, ieeeaddr: ieeeAddress, installCode: key};
+        await this.znp.request(Subsystem.APP_CNF, 'bdbAddInstallCode', payload);
+    }
+
     public async bind(
         destinationNetworkAddress: number, sourceIeeeAddress: string, sourceEndpoint: number,
         clusterID: number, destinationAddressOrGroup: string | number, type: 'endpoint' | 'group',
@@ -755,7 +787,8 @@ class ZStackAdapter extends Adapter {
                         // to rediscover the route every time.
                         const debouncer = debounce(() => {
                             this.queue.execute<void>(async () => {
-                                await this.discoverRoute(payload.networkAddress, false);
+                                /* istanbul ignore next */
+                                this.discoverRoute(payload.networkAddress, false).catch(() => {});
                             }, payload.networkAddress);
                         }, 60 * 1000, true);
                         this.deviceAnnounceRouteDiscoveryDebouncers.set(payload.networkAddress, debouncer);
@@ -833,7 +866,7 @@ class ZStackAdapter extends Adapter {
     }
 
     public async supportsBackup(): Promise<boolean> {
-        return this.version && this.version.product !== ZnpVersion.zStack12;
+        return true;
     }
 
     public async backup(): Promise<Models.Backup> {

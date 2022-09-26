@@ -24,7 +24,7 @@ class Group extends Entity {
     private databaseID: number;
     public readonly groupID: number;
     private readonly _members: Set<Endpoint>;
-    get members(): Endpoint[] {return Array.from(this._members);}
+    get members(): Endpoint[] {return Array.from(this._members).filter((e) => e.getDevice());}
     // Can be used by applications to store data.
     public readonly meta: KeyValue;
     private _dbInstKey: string;
@@ -127,8 +127,8 @@ class Group extends Entity {
         delete Group.groups[this.groupID];
     }
 
-    public save(): void {
-        Entity.databases[this._dbInstKey].update(this.toDatabaseRecord());
+    public save(writeDatabase=true): void {
+        Entity.databases[this._dbInstKey].update(this.toDatabaseRecord(), writeDatabase);
     }
 
     public addMember(endpoint: Endpoint): void {
