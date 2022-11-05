@@ -254,6 +254,10 @@ class Controller extends events.EventEmitter {
         await this.adapter.addInstallCode(ieeeAddr, key);
     }
 
+    public async addInstallCodeByKey(ieeeAddr: string, installCode: number[]): Promise<void> {
+        await this.adapter.addInstallCode(ieeeAddr, Buffer.from(installCode));
+    }
+
     public async permitJoinTimed(duration: number, device?: Device): Promise<void> {
         if (duration && !this.getPermitJoin()) {
             debug.log('Permit joining');
