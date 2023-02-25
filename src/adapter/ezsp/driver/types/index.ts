@@ -1,4 +1,5 @@
 /* istanbul ignore file */
+/* eslint-disable @typescript-eslint/explicit-module-boundary-types */
 import {
     int8s,
     uint_t,
@@ -110,6 +111,8 @@ import {
     EmberSimpleDescriptor,
     EmberMultiAddress,
     EmberNeighbors,
+    EmberRoutingTable,
+    EmberRoutingTableEntry,
 } from './struct';
 
 /* eslint-disable-next-line @typescript-eslint/no-explicit-any*/
@@ -238,4 +241,6 @@ export {
     EmberSimpleDescriptor,
     EmberMultiAddress,
     EmberNeighbors,
+    EmberRoutingTable,
+    EmberRoutingTableEntry,
 };

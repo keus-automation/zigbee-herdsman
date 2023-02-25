@@ -11,6 +11,7 @@ enum Events {
     deviceNetworkAddressChanged = "deviceNetworkAddressChanged",
     deviceLeave = "deviceLeave",
     permitJoinChanged = "permitJoinChanged",
+    lastSeenChanged = "lastSeenChanged",
 }
 
 interface DeviceJoinedPayload {
@@ -43,6 +44,11 @@ interface DeviceLeavePayload {
 
 interface PermitJoinChangedPayload {
     permitted: boolean, reason: 'timer_expired' | 'manual', timeout: number
+}
+
+interface LastSeenChangedPayload {
+    device: Device;
+    reason: 'deviceAnnounce' | 'networkAddress' | 'deviceJoined' | 'messageEmitted' | 'messageNonEmitted';
 }
 
 const CommandsLookup: {[s: string]: MessagePayloadType} = {
@@ -83,8 +89,8 @@ const CommandsLookup: {[s: string]: MessagePayloadType} = {
     'enhancedMoveToHueAndSaturation': 'commandEnhancedMoveToHueAndSaturation',
     'downClose': 'commandDownClose',
     'upOpen': 'commandUpOpen',
-    'getData': 'commandGetData',
-    'setDataResponse': 'commandSetDataResponse',
+    'dataResponse': 'commandDataResponse',
+    'dataReport': 'commandDataReport',
     'getWeeklyScheduleRsp': 'commandGetWeeklyScheduleRsp',
     'queryNextImageRequest': 'commandQueryNextImageRequest',
 
@@ -96,7 +102,7 @@ const CommandsLookup: {[s: string]: MessagePayloadType} = {
     // Sensors specific addition of commands
     'enrollReq': 'commandEnrollReq',
     'enrollRsp': 'commandEnrollRsp',
-    
+
     'alertsNotification': 'commandAlertsNotification',
     'programmingEventNotification': 'commandProgrammingEventNotification',
     'getPinCodeRsp': 'commandGetPinCodeRsp',
@@ -106,6 +112,8 @@ const CommandsLookup: {[s: string]: MessagePayloadType} = {
     'checkin': 'commandCheckIn',
     'moveToHue': 'commandMoveToHue',
     'store': 'commandStore',
+    'alarm': 'commandAlarm',
+    'unlockDoorRsp': 'commandUnlockDoorRsp',
 
     // HEIMAN scenes cluster
     'atHome': 'commandAtHome',
@@ -119,8 +127,9 @@ const CommandsLookup: {[s: string]: MessagePayloadType} = {
     'createIdRsp': 'commandCreateIdRsp',
     'getIdAndKeyCodeListRsp': 'commandGetIdAndKeyCodeListRsp',
 
-    'setTimeRequest': 'commandSetTimeRequest', // Tuya time sync
-    'activeStatusReport': 'commandActiveStatusReport', // Tuya active status report
+    'mcuSyncTime': 'commandMcuSyncTime', // Tuya time sync
+    'activeStatusReport': 'commandActiveStatusReport', // Tuya active status report (command 0x06)
+    'activeStatusReportAlt': 'commandActiveStatusReportAlt', // Tuya active status report (command 0x05)
 
     // Wiser Smart HVAC Commmands
     'wiserSmartSetSetpoint': 'commandWiserSmartSetSetpoint',
@@ -128,6 +137,17 @@ const CommandsLookup: {[s: string]: MessagePayloadType} = {
 
     // Dafoss Ally/Hive TRV Commands
     'danfossSetpointCommand': 'commandDanfossSetpointCommand',
+
+    // Siglis zigfred Commands
+    'siglisZigfredButtonEvent': 'commandSiglisZigfredButtonEvent',
+
+    // Zosung IR remote cluster commands and responses
+    'zosungSendIRCode01': 'commandZosungSendIRCode01',
+    'zosungSendIRCode02': 'commandZosungSendIRCode02',
+    'zosungSendIRCode04': 'commandZosungSendIRCode04',
+    'zosungSendIRCode00': 'commandZosungSendIRCode00',
+    'zosungSendIRCode03Resp': 'zosungSendIRCode03Resp',
+    'zosungSendIRCode05Resp': 'zosungSendIRCode05Resp',
 };
 
 type MessagePayloadType =
@@ -142,16 +162,19 @@ type MessagePayloadType =
     'commandStepWithOnOff' | 'commandMoveToColorTemp' | 'commandMoveToColor' | 'commandOnWithTimedOff' |
     'commandRecall' | 'commandArm' | 'commandPanic' | 'commandEmergency' | 'commandColorLoopSet' |
     'commandOperationEventNotification' | 'commandStatusChangeNotification' | 'commandEnhancedMoveToHueAndSaturation' |
-    'commandUpOpen' | 'commandDownClose' | 'commandMoveToLevel' | 'commandMoveColorTemp' | 'commandGetData' |
-    'commandSetDataResponse' | 'commandGetWeeklyScheduleRsp' | 'commandQueryNextImageRequest' | 'commandNotification' |
-    'commandAppMsg' | 'commandAppMsgRsp' | 'commandAppMsgNoRsp' |
-    'commandEnrollReq' | 'commandEnrollRsp' |
-    'commandAlertsNotification' | 'commandProgrammingEventNotification' | "commandGetPinCodeRsp" |
-    "commandArrivalSensorNotify" | 'commandCommisioningNotification' | 'commandGetUserStatusRsp' |
+    'commandUpOpen' | 'commandDownClose' | 'commandMoveToLevel' | 'commandMoveColorTemp' | 'commandDataResponse' |
+    'commandDataReport' | 'commandGetWeeklyScheduleRsp' | 'commandQueryNextImageRequest' | 'commandNotification' |
+    'commandAlertsNotification' | 'commandProgrammingEventNotification' | 'commandGetPinCodeRsp' |
+    'commandArrivalSensorNotify' | 'commandCommisioningNotification' | 'commandGetUserStatusRsp' |
+    'commandAlarm' | 'commandUnlockDoorRsp' |
     'commandAtHome' | 'commandGoOut' | 'commandCinema' | 'commandRepast' | 'commandSleep' |
-    'commandStudyKeyRsp' | 'commandCreateIdRsp' | 'commandGetIdAndKeyCodeListRsp' | 'commandSetTimeRequest' |
-    'commandGetPanelStatus' | 'commandCheckIn' | 'commandActiveStatusReport' | 'commandMoveToHue' | 'commandStore'|
-    'commandWiserSmartSetSetpoint' | 'commandWiserSmartCalibrateValve' | 'commandDanfossSetpointCommand';
+    'commandStudyKeyRsp' | 'commandCreateIdRsp' | 'commandGetIdAndKeyCodeListRsp' | 'commandMcuSyncTime' |
+    'commandGetPanelStatus' | 'commandCheckIn' | 'commandActiveStatusReport' | 'commandActiveStatusReportAlt' |
+    'commandMoveToHue' | 'commandStore'| 'commandWiserSmartSetSetpoint' | 'commandWiserSmartCalibrateValve' |
+    'commandSiglisZigfredButtonEvent' | 'commandDanfossSetpointCommand' | 'commandZosungSendIRCode00' |
+    'commandZosungSendIRCode01' | 'commandZosungSendIRCode02'|'commandZosungSendIRCode04' | 'zosungSendIRCode03Resp' |
+    'zosungSendIRCode05Resp' |
+    'commandAppMsg' | 'commandAppMsgRsp' | 'commandAppMsgNoRsp' | 'commandEnrollReq' | 'commandEnrollRsp';
 
 interface MessagePayload {
     type: MessagePayloadType;
@@ -169,5 +192,6 @@ interface MessagePayload {
 export {
     Events, MessagePayload, MessagePayloadType, CommandsLookup, DeviceInterviewPayload, DeviceAnnouncePayload,
     DeviceLeavePayload, DeviceJoinedPayload, PermitJoinChangedPayload, DeviceNetworkAddressChangedPayload,
+    LastSeenChangedPayload,
     DeviceRejoinedPayload
 };

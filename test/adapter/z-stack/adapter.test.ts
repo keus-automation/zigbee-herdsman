@@ -16,6 +16,7 @@ import {UnifiedBackupStorage} from "../../../src/models";
 import {ZnpAdapterManager} from "../../../src/adapter/z-stack/adapter/manager";
 
 const deepClone = (obj) => JSON.parse(JSON.stringify(obj));
+const mockSetTimeout = () => setTimeout = jest.fn().mockImplementation((r) => r());
 
 jest.mock('../../../src/utils/wait', () => {
     return jest.fn();
@@ -138,6 +139,7 @@ const backupMatchingConfig = JSON.parse(`
       {
         "nwk_address": "4285",
         "ieee_address": "00158d00024f810d",
+        "is_child": false,
         "link_key": {
           "key": "55ba1e31fcd8171f9f0b63459effbca5",
           "rx_counter": 0,
@@ -147,11 +149,49 @@ const backupMatchingConfig = JSON.parse(`
       {
         "nwk_address": "4286",
         "ieee_address": "00158d00024f810e",
+        "is_child": true,
         "link_key": {
           "key": "55ba1e31fcd8171fee0b63459effeea5",
           "rx_counter": 24,
           "tx_counter": 91
         }
+      }
+    ]
+  }
+`);
+
+const backupMatchingConfig12 = JSON.parse(`
+{
+    "metadata": {
+      "format": "zigpy/open-coordinator-backup",
+      "version": 1,
+      "source": "zigbee-herdsman@0.13.65",
+      "internal": {
+        "date": "2021-03-03T19:15:40.524Z",
+        "znpVersion": 0
+      }
+    },
+    "stack_specific": {
+      "zstack": {}
+    },
+    "coordinator_ieee": "00124b0009d80ba7",
+    "pan_id": "007b",
+    "extended_pan_id": "00124b0009d69f77",
+    "nwk_update_id": 0,
+    "security_level": 5,
+    "channel": 21,
+    "channel_mask": [
+      21
+    ],
+    "network_key": {
+      "key": "01030507090b0d0f00020406080a0c0d",
+      "sequence_number": 0,
+      "frame_counter": 0
+    },
+    "devices": [
+      {
+        "nwk_address": "ddf6",
+        "ieee_address": "00124b002226ef87"
       }
     ]
   }
@@ -752,7 +792,6 @@ class ZnpRequestMockBuilder {
             throw new Error(msg);
         }
         const response = responder.exec(message.payload, this);
-        // console.log(message, response);
         return response;
     }
 
@@ -796,6 +835,7 @@ const baseZnpRequestMock = new ZnpRequestMockBuilder()
     .handle(Subsystem.UTIL, "assocGetWithAddress", () => ({payload: {noderelation: assocGetWithAddressNodeRelation}}))
     .handle(Subsystem.UTIL, "assocAdd", () => ({payload: {}}))
     .handle(Subsystem.UTIL, "ledControl", () => ({}))
+    .handle(Subsystem.APP_CNF, "bdbAddInstallCode", () => ({}))
     .handle(Subsystem.AF, "register", () => ({}))
     .handle(Subsystem.AF, "dataRequest", () => {
         if (dataRequestCode !== 0) {
@@ -921,7 +961,11 @@ const empty12UnalignedRequestMock = baseZnpRequestMock.clone()
 
 const commissioned12UnalignedRequestMock = empty12UnalignedRequestMock.clone()
     .nv(NvItemsIds.ZNP_HAS_CONFIGURED_ZSTACK1, Buffer.from([0x55]))
+    .nv(NvItemsIds.PRECFGKEY, Buffer.from("01030507090b0d0f00020406080a0c0d", "hex"))
     .nv(NvItemsIds.NIB, Buffer.from("fb050279147900640000000105018f0700020d1e000015000000000000000000007b0008000020000f0f0400010000000100000000779fd609004b1200010000000000000000000000000000000000000000000000000000000000000000000000003c0c0001780a010000060200", "hex"));
+
+const commissioned12UnalignedMismatchRequestMock = commissioned12UnalignedRequestMock.clone()
+    .nv(NvItemsIds.PRECFGKEY, Buffer.from("aabb0507090b0d0f00020406080a0c0d", "hex"));
 
 const mockZnpRequest = jest.fn().mockReturnValue(new Promise((resolve) => resolve({payload: {}}))).mockImplementation((subsystem: Subsystem, command: string, payload: any, expectedStatus: ZnpCommandStatus) => new Promise((resolve) => resolve(baseZnpRequestMock.execute({subsystem, command, payload}))));
 const mockZnpWaitFor = jest.fn();
@@ -1057,7 +1101,7 @@ const touchlinkScanResponse = Zcl.ZclFrame.create(
     null, 12, 'scanResponse', Zcl.Utils.getCluster('touchlink').ID,
     {transactionID: 1, rssiCorrection: 10, zigbeeInformation: 5, touchlinkInformation: 6, keyBitmask: 12, responseID: 11,
      extendedPanID: '0x0017210104d9cd33', networkUpdateID: 1, logicalChannel: 12, panID: 13, networkAddress: 5, numberOfSubDevices: 10,
-     totalGroupIdentifiers: 5, endpointID: 1, profileID: 99, deviceID: 101, version: 3, groupIdentifierCount: 8 }
+     totalGroupIdentifiers: 5}
 );
 
 const touchlinkIdentifyRequest = Zcl.ZclFrame.create(
@@ -1121,7 +1165,13 @@ Znp.autoDetectPath = jest.fn().mockReturnValue("/dev/autodetected");
 describe("zstack-adapter", () => {
     let adapter: ZStackAdapter;
 
+    afterAll(async () => {
+        jest.useRealTimers();
+    });
+
     beforeEach(() => {
+        jest.useRealTimers();
+        jest.useFakeTimers();
         adapter = new ZStackAdapter(networkOptions, serialPortOptions, "backup.json", {concurrent: 3});
         mockZnpWaitForDefault();
         mocks.forEach((m) => m.mockRestore());
@@ -1269,6 +1319,18 @@ describe("zstack-adapter", () => {
         await adapter.backup();
     });
 
+    it("should (recommission) restore unified backup with 1.2 adapter and create backup - empty", async () => {
+        const backupFile = getTempFile();
+        fs.writeFileSync(backupFile, JSON.stringify(backupMatchingConfig12), "utf8");
+        adapter = new ZStackAdapter(networkOptions, serialPortOptions, backupFile, {concurrent: 1});
+        mockZnpRequestWith(empty12UnalignedRequestMock);
+        const result = await adapter.start();
+        expect(result).toBe("restored");
+
+        const backup = await adapter.backup();
+        expect(backup.networkKeyInfo.frameCounter).toBe(0);
+    });
+
     it("should create backup with 3.0.x adapter - default security material table entry", async () => {
         const builder = commissioned3AlignedRequestMock.clone();
         mockZnpRequestWith(builder);
@@ -1312,6 +1374,23 @@ describe("zstack-adapter", () => {
 
         const backup = await adapter.backup();
         expect(backup.networkKeyInfo.frameCounter).toBe(8737);
+    });
+
+    it("should create backup with 1.2 adapter", async () => {
+        mockZnpRequestWith(commissioned12UnalignedRequestMock);
+        const result = await adapter.start();
+        expect(result).toBe("resumed");
+
+        const backup = await adapter.backup();
+        expect(backup.networkKeyInfo.frameCounter).toBe(0);
+    });
+
+    it("should fail when backup file is corrupted - Coordinator backup is corrupted", async () => {
+        const backupFile = getTempFile();
+        fs.writeFileSync(backupFile, "{", "utf8");
+        adapter = new ZStackAdapter(networkOptions, serialPortOptions, backupFile, {concurrent: 3});
+        mockZnpRequestWith(empty3AlignedRequestMock);
+        await expect(adapter.start()).rejects.toThrowError("Coordinator backup is corrupted");
     });
 
     it("should fail to restore unified backup with 3.0.x adapter - invalid open coordinator backup version", async () => {
@@ -1388,6 +1467,17 @@ describe("zstack-adapter", () => {
         adapter = new ZStackAdapter(networkOptions, serialPortOptions, backupFile, {concurrent: 3});
         await expect(adapter.start()).rejects.toThrowError("target adapter security manager table size insufficient (size=1)");
     });
+
+    it("should fail to restore unified backup with 1.2 adapter - backup from newer adapter", async () => {
+        const backupFile = getTempFile();
+        let backupData: UnifiedBackupStorage = JSON.parse(JSON.stringify(backupMatchingConfig));
+        fs.writeFileSync(backupFile, JSON.stringify(backupData), "utf8");
+
+        mockZnpRequestWith(empty12UnalignedRequestMock);
+        adapter = new ZStackAdapter(networkOptions, serialPortOptions, backupFile, {concurrent: 3});
+        await expect(adapter.start()).rejects.toThrowError("your backup is from newer platform version (Z-Stack 3.0.x+) and cannot be restored onto Z-Stack 1.2 adapter - please remove backup before proceeding");
+    });
+
 
     it("should fail to create backup with 3.0.x adapter - unable to read ieee address", async () => {
         mockZnpRequestWith(commissioned3AlignedRequestMock.clone()
@@ -1506,6 +1596,36 @@ describe("zstack-adapter", () => {
         expect(mockLoggerError.mock.calls[7][0]).toBe("Re-commissioning your network will require re-pairing of all devices!");
     });
 
+    it("should start with runInconsistent option with 3.0.x adapter - commissioned, config-adapter mismatch", async () => {
+        const backupFile = getTempFile();
+        fs.writeFileSync(backupFile, JSON.stringify(backupMatchingConfig), "utf8");
+
+        const mockLoggerDebug = jest.fn();
+        const mockLoggerInfo = jest.fn();
+        const mockLoggerWarn = jest.fn();
+        const mockLoggerError = jest.fn();
+        const mockLogger: LoggerStub = {
+            debug: mockLoggerDebug,
+            info: mockLoggerInfo,
+            warn: mockLoggerWarn,
+            error: mockLoggerError
+        };
+
+        adapter = new ZStackAdapter(networkOptionsMismatched, serialPortOptions, backupFile, {concurrent: 3, forceStartWithInconsistentAdapterConfiguration: true}, mockLogger);
+        mockZnpRequestWith(commissioned3AlignedRequestMock);
+        const result = await adapter.start();
+        expect(result).toBe("resumed");
+        expect(mockLoggerError.mock.calls[0][0]).toBe("Configuration is not consistent with adapter state/backup!");
+        expect(mockLoggerError.mock.calls[1][0]).toBe("- PAN ID: configured=124, adapter=123");
+        expect(mockLoggerError.mock.calls[2][0]).toBe("- Extended PAN ID: configured=00124b0009d69f77, adapter=00124b0009d69f77");
+        expect(mockLoggerError.mock.calls[3][0]).toBe("- Network Key: configured=01030507090b0d0f00020406080a0c0d, adapter=01030507090b0d0f00020406080a0c0d");
+        expect(mockLoggerError.mock.calls[4][0]).toBe("- Channel List: configured=21, adapter=21");
+        expect(mockLoggerError.mock.calls[5][0]).toBe("Please update configuration to prevent further issues.");
+        expect(mockLoggerError.mock.calls[6][0]).toMatch(`If you wish to re\-commission your network, please remove coordinator backup at ${backupFile}`);
+        expect(mockLoggerError.mock.calls[7][0]).toBe("Re-commissioning your network will require re-pairing of all devices!");
+        expect(mockLoggerError.mock.calls[8][0]).toBe("Running despite adapter configuration mismatch as configured. Please update the adapter to compatible firmware and recreate your network as soon as possible.");
+    });
+
     it("should start with 3.0.x adapter - backward-compat - reversed extended pan id", async () => {
         const backupFile = getTempFile();
         fs.writeFileSync(backupFile, JSON.stringify(backupMatchingConfig), "utf8");
@@ -1598,16 +1718,93 @@ describe("zstack-adapter", () => {
         expect(result).toBe("restored");
     });
 
-    it("should reset network with 1.2 adapter", async () => {
-        mockZnpRequestWith(commissioned12UnalignedRequestMock);
+    it("should reset network with 1.2 adapter - config mismtach", async () => {
+        mockZnpRequestWith(commissioned12UnalignedMismatchRequestMock);
         const result = await adapter.start();
         expect(result).toBe("reset");
     });
 
+    it("Add install code: Install Code + CRC", async () => {
+        basicMocks();
+        await adapter.start();
+        await adapter.addInstallCode('0x9035EAFFFE424783', Buffer.from([0xAE, 0x3B, 0x28, 0x72, 0x81, 0xCF, 0x16, 0xF5, 0x50, 0x73, 0x3A, 0x0C, 0xEC, 0x38, 0xAA, 0x31, 0xE8, 0x02]))
+        const payload = {
+            installCodeFormat: 1,
+            ieeeaddr: '0x9035EAFFFE424783',
+            installCode: Buffer.from([0xAE, 0x3B, 0x28, 0x72, 0x81, 0xCF, 0x16, 0xF5, 0x50, 0x73, 0x3A, 0x0C, 0xEC, 0x38, 0xAA, 0x31, 0xE8, 0x02]),
+        }
+        expect(mockZnpRequest).toHaveBeenCalledWith(Subsystem.APP_CNF, 'bdbAddInstallCode', payload);
+    });
 
+    it("Add install code: Key derived from Install Code", async () => {
+        basicMocks();
+        await adapter.start();
+        await adapter.addInstallCode('0x9035EAFFFE424783', Buffer.from([0xAE, 0x3B, 0x28, 0x72, 0x81, 0xCF, 0x16, 0xF5, 0x50, 0x73, 0x3A, 0x0C, 0xEC, 0x38, 0xAA, 0x31]))
+        const payload = {
+            installCodeFormat: 2,
+            ieeeaddr: '0x9035EAFFFE424783',
+            installCode: Buffer.from([0xAE, 0x3B, 0x28, 0x72, 0x81, 0xCF, 0x16, 0xF5, 0x50, 0x73, 0x3A, 0x0C, 0xEC, 0x38, 0xAA, 0x31]),
+        }
+        expect(mockZnpRequest).toHaveBeenCalledWith(Subsystem.APP_CNF, 'bdbAddInstallCode', payload);
+    });
 
+    it("LED behaviour: disable LED true, firmware not handling leds", async () => {
+        basicMocks();
+        adapter = new ZStackAdapter(networkOptions, serialPortOptions, "backup.json", {disableLED: true});
+        await adapter.start();
+        expect(mockZnpRequest).toBeCalledWith(Subsystem.UTIL, 'ledControl', {ledid: 3, mode: 0}, null, 500);
+        mockZnpRequest.mockClear();
+        await adapter.permitJoin(255, 0);
+        expect(mockZnpRequest).not.toBeCalledWith(Subsystem.UTIL, 'ledControl', expect.any(Object), null, 500);
+        mockZnpRequest.mockClear();
+        await adapter.permitJoin(0, 0);
+        expect(mockZnpRequest).not.toBeCalledWith(Subsystem.UTIL, 'ledControl', expect.any(Object), null, 500);
+    });
 
+    it("LED behaviour: disable LED false, firmware not handling leds", async () => {
+        basicMocks();
+        adapter = new ZStackAdapter(networkOptions, serialPortOptions, "backup.json", {disableLED: false});
+        await adapter.start();
+        expect(mockZnpRequest).not.toBeCalledWith(Subsystem.UTIL, 'ledControl', expect.any(Object), null, 500);
+        mockZnpRequest.mockClear();
+        await adapter.permitJoin(255, 0);
+        expect(mockZnpRequest).toBeCalledWith(Subsystem.UTIL, 'ledControl', {ledid: 3, mode: 1}, null, 500);
+        mockZnpRequest.mockClear();
+        await adapter.permitJoin(0, 0);
+        expect(mockZnpRequest).toBeCalledWith(Subsystem.UTIL, 'ledControl', {ledid: 3, mode: 0}, null, 500);
+    });
 
+    it("LED behaviour: disable LED true, firmware handling leds", async () => {
+        mockZnpRequestWith(
+            baseZnpRequestMock.clone()
+                .handle(Subsystem.SYS, "version", payload => { return { payload: { product: ZnpVersion.zStack30x, revision: 20211030 } }})
+        );
+        adapter = new ZStackAdapter(networkOptions, serialPortOptions, "backup.json", {disableLED: true});
+        await adapter.start();
+        expect(mockZnpRequest).toBeCalledWith(Subsystem.UTIL, 'ledControl', {ledid: 0xFF, mode: 5}, null, 500);
+        mockZnpRequest.mockClear();
+        await adapter.permitJoin(255, 0);
+        expect(mockZnpRequest).not.toBeCalledWith(Subsystem.UTIL, 'ledControl', expect.any(Object), null, 500);
+        mockZnpRequest.mockClear();
+        await adapter.permitJoin(0, 0);
+        expect(mockZnpRequest).not.toBeCalledWith(Subsystem.UTIL, 'ledControl', expect.any(Object), null, 500);
+    });
+
+    it("LED behaviour: disable LED false, firmware handling leds", async () => {
+        mockZnpRequestWith(
+            baseZnpRequestMock.clone()
+                .handle(Subsystem.SYS, "version", payload => { return { payload: { product: ZnpVersion.zStack30x, revision: 20211030 } }})
+        );
+        adapter = new ZStackAdapter(networkOptions, serialPortOptions, "backup.json", {disableLED: false});
+        await adapter.start();
+        expect(mockZnpRequest).not.toBeCalledWith(Subsystem.UTIL, 'ledControl', expect.any(Object), null, 500);
+        mockZnpRequest.mockClear();
+        await adapter.permitJoin(255, 0);
+        expect(mockZnpRequest).not.toBeCalledWith(Subsystem.UTIL, 'ledControl', expect.any(Object), null, 500);
+        mockZnpRequest.mockClear();
+        await adapter.permitJoin(0, 0);
+        expect(mockZnpRequest).not.toBeCalledWith(Subsystem.UTIL, 'ledControl', expect.any(Object), null, 500);
+    });
 
     /* Original Tests */
     it('Is valid path', async () => {
@@ -1805,8 +2002,9 @@ describe("zstack-adapter", () => {
         await adapter.start();
         mockZnpRequest.mockClear();
         await adapter.permitJoin(100, null);
-        expect(mockZnpRequest).toBeCalledTimes(1);
+        expect(mockZnpRequest).toBeCalledTimes(2);
         expect(mockZnpRequest).toBeCalledWith(Subsystem.ZDO, 'mgmtPermitJoinReq', {addrmode: 0x0F, dstaddr: 0xFFFC , duration: 100, tcsignificance: 0 });
+        expect(mockZnpRequest).toBeCalledWith(Subsystem.UTIL, 'ledControl', {ledid: 3, mode: 1}, null, 500);
     });
 
     it('Permit join specific networkAddress', async () => {
@@ -1814,8 +2012,9 @@ describe("zstack-adapter", () => {
         await adapter.start();
         mockZnpRequest.mockClear();
         await adapter.permitJoin(102, 42102);
-        expect(mockZnpRequest).toBeCalledTimes(1);
+        expect(mockZnpRequest).toBeCalledTimes(2);
         expect(mockZnpRequest).toBeCalledWith(Subsystem.ZDO, 'mgmtPermitJoinReq', {addrmode: 2, dstaddr: 42102 , duration: 102, tcsignificance: 0 });
+        expect(mockZnpRequest).toBeCalledWith(Subsystem.UTIL, 'ledControl', {ledid: 3, mode: 1}, null, 500);
     });
 
     it('Get coordinator version', async () => {
@@ -1852,38 +2051,19 @@ describe("zstack-adapter", () => {
         expect(mockZnpRequest).toBeCalledWith(Subsystem.SYS, 'stackTune', {operation: 0, value: 15});
     });
 
-    it('Disable led', async () => {
-        basicMocks();
-        await adapter.start();
-        mockZnpRequest.mockClear();
-        await adapter.setLED(false);
-        expect(mockZnpRequest).toBeCalledTimes(1);
-        expect(mockZnpRequest).toBeCalledWith(Subsystem.UTIL, 'ledControl', {ledid: 3, mode: 0}, null, 500);
-    });
-
-    it('Enable led', async () => {
-        basicMocks();
-        await adapter.start();
-        mockZnpRequest.mockClear();
-        await adapter.setLED(true);
-        expect(mockZnpRequest).toBeCalledTimes(1);
-        expect(mockZnpRequest).toBeCalledWith(Subsystem.UTIL, 'ledControl', {ledid: 3, mode: 1}, null, 500);
-    });
-
-    it('Supports led', async () => {
-        basicMocks();
-        await adapter.start();
-        expect(await adapter.supportsLED()).toBeTruthy();
-    });
-
     it('Support LED should go to false when LED request fails', async () => {
         basicMocks();
         await adapter.start();
-        expect(await adapter.supportsLED()).toBeTruthy();
         mockZnpRequest.mockClear();
-        mockZnpRequest.mockImplementationOnce(() => new Promise((resolve, reject) => reject("FAILED")));
-        await adapter.setLED(true);
-        expect(await adapter.supportsLED()).toBeFalsy();
+        mockZnpRequest.mockImplementation((_, cmd) => new Promise((resolve, reject) => {
+            if (cmd == 'ledControl') reject('FAILED');
+            else resolve(null);
+        }));
+        await adapter.permitJoin(0, 0);
+        expect(mockZnpRequest).toBeCalledWith(Subsystem.UTIL, 'ledControl', {ledid: 3, mode: 0}, null, 500);
+        mockZnpRequest.mockClear();
+        await adapter.permitJoin(0, 0);
+        expect(mockZnpRequest).not.toBeCalledWith(Subsystem.UTIL, 'ledControl', {ledid: 3, mode: 0}, null, 500);
     });
 
     it('Node descriptor', async () => {
@@ -2280,6 +2460,7 @@ describe("zstack-adapter", () => {
         const objectMismatch = {type: Type.AREQ, subsystem: Subsystem.AF, command: 'incomingMsg', payload: {clusterid: 0, srcendpoint: 20, srcaddr: 2, linkquality: 101, groupid: 12, data: responseMismatchFrame.toBuffer()}};
         let error;
         try {
+            mockSetTimeout();
             const response = adapter.sendZclFrameToEndpoint('0x02', 2, 20, frame, 1, false, false);
             znpReceived(objectMismatch);
             await response;
@@ -2604,7 +2785,7 @@ describe("zstack-adapter", () => {
 
         expect(mockZnpRequest).toBeCalledTimes(1);
         expect(mockZnpRequest).toBeCalledWith(4, "dataRequestExt", {"clusterid": 4096, "data": touchlinkScanRequest.toBuffer(), "destendpoint": 254, "dstaddr": "0x000000000000ffff", "len": 9, "options": 0, "radius": 30, "srcendpoint": 12, "transid": 1, "dstaddrmode": 2, "dstpanid": 65535}, null);
-        expect(deepClone(result)).toStrictEqual({"wasBroadcast":false,"frame":{"Header":{"frameControl":{"frameType":1,"manufacturerSpecific":false,"direction":1,"disableDefaultResponse":false,"reservedBits":0},"transactionSequenceNumber":12,"manufacturerCode":null,"commandIdentifier":1},"Payload":{"transactionID":1,"rssiCorrection":10,"zigbeeInformation":5,"touchlinkInformation":6,"keyBitmask":12,"responseID":11,"extendedPanID":"0x0017210104d9cd33","networkUpdateID":1,"logicalChannel":12,"panID":13,"networkAddress":5,"numberOfSubDevices":10,"totalGroupIdentifiers":5,"endpointID":1,"profileID":99,"deviceID":101,"version":3,"groupIdentifierCount":8},"Cluster":{"ID":4096,"attributes":{},"name":"touchlink","commands":{"scanRequest":{"ID":0,"response":1,"parameters":[{"name":"transactionID","type":35},{"name":"zigbeeInformation","type":24},{"name":"touchlinkInformation","type":24}],"name":"scanRequest"},"identifyRequest":{"ID":6,"parameters":[{"name":"transactionID","type":35},{"name":"duration","type":33}],"name":"identifyRequest"},"resetToFactoryNew":{"ID":7,"parameters":[{"name":"transactionID","type":35}],"name":"resetToFactoryNew"}},"commandsResponse":{"scanResponse":{"ID":1,"parameters":[{"name":"transactionID","type":35},{"name":"rssiCorrection","type":32},{"name":"zigbeeInformation","type":32},{"name":"touchlinkInformation","type":32},{"name":"keyBitmask","type":33},{"name":"responseID","type":35},{"name":"extendedPanID","type":240},{"name":"networkUpdateID","type":32},{"name":"logicalChannel","type":32},{"name":"panID","type":33},{"name":"networkAddress","type":33},{"name":"numberOfSubDevices","type":32},{"name":"totalGroupIdentifiers","type":32},{"name":"endpointID","type":32},{"name":"profileID","type":33},{"name":"deviceID","type":33},{"name":"version","type":32},{"name":"groupIdentifierCount","type":32}],"name":"scanResponse"}}},"Command":{"ID":1,"parameters":[{"name":"transactionID","type":35},{"name":"rssiCorrection","type":32},{"name":"zigbeeInformation","type":32},{"name":"touchlinkInformation","type":32},{"name":"keyBitmask","type":33},{"name":"responseID","type":35},{"name":"extendedPanID","type":240},{"name":"networkUpdateID","type":32},{"name":"logicalChannel","type":32},{"name":"panID","type":33},{"name":"networkAddress","type":33},{"name":"numberOfSubDevices","type":32},{"name":"totalGroupIdentifiers","type":32},{"name":"endpointID","type":32},{"name":"profileID","type":33},{"name":"deviceID","type":33},{"name":"version","type":32},{"name":"groupIdentifierCount","type":32}],"name":"scanResponse"}},"address":12394,"endpoint":254,"linkquality":101,"groupID":0});
+        expect(deepClone(result)).toStrictEqual({"wasBroadcast":false,"frame":{"Header":{"frameControl":{"frameType":1,"manufacturerSpecific":false,"direction":1,"disableDefaultResponse":false,"reservedBits":0},"transactionSequenceNumber":12,"manufacturerCode":null,"commandIdentifier":1},"Payload":{"transactionID":1,"rssiCorrection":10,"zigbeeInformation":5,"touchlinkInformation":6,"keyBitmask":12,"responseID":11,"extendedPanID":"0x0017210104d9cd33","networkUpdateID":1,"logicalChannel":12,"panID":13,"networkAddress":5,"numberOfSubDevices":10,"totalGroupIdentifiers":5},"Cluster":{"ID":4096,"attributes":{},"name":"touchlink","commands":{"scanRequest":{"ID":0,"response":1,"parameters":[{"name":"transactionID","type":35},{"name":"zigbeeInformation","type":24},{"name":"touchlinkInformation","type":24}],"name":"scanRequest"},"identifyRequest":{"ID":6,"parameters":[{"name":"transactionID","type":35},{"name":"duration","type":33}],"name":"identifyRequest"},"resetToFactoryNew":{"ID":7,"parameters":[{"name":"transactionID","type":35}],"name":"resetToFactoryNew"}},"commandsResponse":{"scanResponse":{"ID":1,"parameters":[{"name":"transactionID","type":35},{"name":"rssiCorrection","type":32},{"name":"zigbeeInformation","type":32},{"name":"touchlinkInformation","type":32},{"name":"keyBitmask","type":33},{"name":"responseID","type":35},{"name":"extendedPanID","type":240},{"name":"networkUpdateID","type":32},{"name":"logicalChannel","type":32},{"name":"panID","type":33},{"name":"networkAddress","type":33},{"name":"numberOfSubDevices","type":32},{"name":"totalGroupIdentifiers","type":32}],"name":"scanResponse"}}},"Command":{"ID":1,"parameters":[{"name":"transactionID","type":35},{"name":"rssiCorrection","type":32},{"name":"zigbeeInformation","type":32},{"name":"touchlinkInformation","type":32},{"name":"keyBitmask","type":33},{"name":"responseID","type":35},{"name":"extendedPanID","type":240},{"name":"networkUpdateID","type":32},{"name":"logicalChannel","type":32},{"name":"panID","type":33},{"name":"networkAddress","type":33},{"name":"numberOfSubDevices","type":32},{"name":"totalGroupIdentifiers","type":32}],"name":"scanResponse"}},"address":12394,"endpoint":254,"linkquality":101,"groupID":0});
     });
 
     it('Send zcl frame interpan throw exception when command has no response', async () => {

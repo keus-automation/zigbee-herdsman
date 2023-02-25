@@ -5,6 +5,7 @@ import BuffaloZcl from '../src/zcl/buffaloZcl';
 import FrameType from "../src/zcl/definition/frameType";
 import Direction from "../src/zcl/definition/direction";
 import {StructuredIndicatorType} from "../src/zcl/tstype";
+import { TsType } from "../src/buffalo";
 
 describe('Zcl', () => {
 
@@ -68,7 +69,11 @@ describe('Zcl', () => {
     it('Get cluster by name non-existing', () => {
         expect(() => {
             Zcl.Utils.getCluster('notExisting');
-        }).toThrowError("Cluster with key 'notExisting' does not exist")
+        }).toThrowError("Cluster with name 'notExisting' does not exist")
+    });
+
+    it('Get cluster by id non-existing', () => {
+        expect(JSON.parse(JSON.stringify(Zcl.Utils.getCluster(0x190231)))).toStrictEqual({"ID":1638961,"attributes":{},"manufacturerCode":null,"name":"1638961","commands":{},"commandsResponse":{}});
     });
 
     it('Get specific command by ID', () => {
@@ -529,9 +534,18 @@ describe('Zcl', () => {
                 deviceID: 2,
                 options: 129,
                 extendedOptions: 242,
+                gpdClientClusters: Buffer.alloc(0),
+                gpdServerClusters: Buffer.alloc(0),
+                manufacturerID: 0,
+                modelID: 0,
+                numClientClusters: 0,
+                numServerClusters: 0,
                 securityKey: Buffer.from([0xf1,0xec,0x92,0xab,0xff,0x8f,0x13,0x63,0xe1,0x46,0xbe,0xb5,0x18,0xc9,0x0c,0xab]),
                 keyMic: 3587458724,
                 outgoingCounter: 505,
+                applicationInfo: 0,
+                numGdpCommands: 0,
+                gpdCommandIdList: Buffer.alloc(0),
             },
         };
 
@@ -591,6 +605,36 @@ describe('Zcl', () => {
             frameCounter: 1253,
             options: 5280,
             payloadSize: 255,
+        };
+
+        expect(frame.Header).toStrictEqual(header);
+        expect(frame.Payload).toStrictEqual(payload);
+    });
+
+    it('ZclFrame from buffer GDP pairing', () => {
+        const buffer = [0x19, 0x17, 0x01, 0x68, 0xe5, 0x00, 0xf8, 0x71, 0x71, 0x01, 0x47, 0x65, 0xa1, 0x1c, 0x00, 0x4b, 0x12, 0x00, 0x00, 0x00, 0x02, 0x1c, 0x12, 0x00, 0x00, 0x09, 0x3c, 0xed, 0x1d, 0xbf, 0x25, 0x63, 0xf9, 0x29, 0x5c, 0x0d, 0x3d, 0x9f, 0xc5, 0x76, 0xe1,0,0,0,0,0,0];
+        const frame = Zcl.ZclFrame.fromBuffer(Zcl.Utils.getCluster("greenPower").ID, Buffer.from(buffer));
+        const header = {
+            commandIdentifier: 1,
+            frameControl: {
+                reservedBits: 0,
+                direction: 1,
+                disableDefaultResponse: true,
+                frameType: 1,
+                manufacturerSpecific: false,
+            },
+            manufacturerCode: null,
+            transactionSequenceNumber: 23,
+        };
+
+        const payload = {
+            options: 0x00e568,
+            srcID: 0x017171f8,
+            sinkIEEEAddr: "0x00124b001ca16547",
+            sinkNwkAddr: 0,
+            deviceID: 2,
+            frameCounter: 4636,
+            gpdKey: Buffer.from([0x09, 0x3c, 0xed, 0x1d, 0xbf, 0x25, 0x63, 0xf9, 0x29, 0x5c, 0x0d, 0x3d, 0x9f, 0xc5, 0x76, 0xe1])
         };
 
         expect(frame.Header).toStrictEqual(header);
@@ -722,7 +766,7 @@ describe('Zcl', () => {
             FrameType.GLOBAL, Direction.CLIENT_TO_SERVER, false, 0x10f3, 8, 'readRsp', 0xfc00, payload
         );
 
-        expect(frame.Cluster.name).toBe('manuSpecificPhilips');
+        expect(frame.Cluster.name).toBe('manuSpecificUbisysDeviceSetup');
     });
 
     it('ZclFrame with Ubisys (manufacturer specific) cluster fromBuffer', () => {
@@ -1089,6 +1133,50 @@ describe('Zcl', () => {
         expect(value).toStrictEqual("0x0907070605040501");
     });
 
+    it.each([
+        [
+            'no data point',
+            Buffer.from([]),
+            [],
+        ],
+        [
+            'single data point',
+            Buffer.from([1, 4, 0, 1, 1]),
+            [
+                {"dp":1, "datatype":4, "data": Buffer.from([1])},
+            ],
+        ],
+        [
+            'two data points',
+            Buffer.from([1, 4, 0, 1, 1, 4, 2, 0, 4, 0, 0, 0, 90]),
+            [
+                {"dp":1, "datatype":4, "data": Buffer.from([1])},
+                {"dp":4, "datatype":2, "data": Buffer.from([0, 0, 0, 90])}
+            ],
+        ],
+        [
+            'incomplete data point is ignored',
+            Buffer.from([1, 4, 0, 1, 1, 4]),
+            [
+                {"dp":1, "datatype":4, "data": Buffer.from([1])},
+            ],
+        ],
+        [
+            'incomplete data buffer',
+            Buffer.from([1, 4, 0, 1, 1, 4, 2, 0, 4, 0, 0, 0]),
+            [
+                {"dp":1, "datatype":4, "data": Buffer.from([1])},
+                {"dp":4, "datatype":2, "data": Buffer.from([0, 0, 0])}
+            ],
+        ],
+    ])
+    ('BuffaloZcl read readListTuyaDataPointValues %s', (_name, buffer, payload) => {
+        const buffalo = new BuffaloZcl(buffer);
+        const value = buffalo.read(BuffaloZclDataType[BuffaloZclDataType.LIST_TUYA_DATAPOINT_VALUES], {});
+        expect(buffalo.isMore()).not.toBeTruthy();
+        expect(value).toStrictEqual(payload);
+    });
+
     it('BuffaloZcl write charStr', () => {
         const payload = 'hello';
         const buffer = Buffer.alloc(7);
@@ -1199,8 +1287,44 @@ describe('Zcl', () => {
         expect(buffer).toStrictEqual(expected);
     });
 
+    it.each([
+        [
+            'no data point',
+            [],
+            Buffer.from([]),
+        ],
+        [
+            'single data point',
+            [
+                {"dp":1, "datatype":4, "data": Buffer.from([1])},
+            ],
+            Buffer.from([1, 4, 0, 1, 1]),
+        ],
+        [
+            'two data points',
+            [
+                {"dp":1, "datatype":4, "data": Buffer.from([1])},
+                {"dp":4, "datatype":2, "data": Buffer.from([0, 0, 0, 90])}
+            ],
+            Buffer.from([1, 4, 0, 1, 1, 4, 2, 0, 4, 0, 0, 0, 90]),
+        ],
+    ])
+    ('BuffaloZcl writeListTuyaDataPointValues %s', (_name, payload, expected) => {
+        const buffer = Buffer.alloc(expected.length);
+        const buffalo = new BuffaloZcl(buffer);
+        const result = buffalo.write(BuffaloZclDataType[BuffaloZclDataType.LIST_TUYA_DATAPOINT_VALUES], payload, {});
+        expect(buffalo.getPosition()).toBe(expected.length);
+        expect(buffer).toStrictEqual(expected);
+    });
+
     it('Zcl utils get cluster without manufacturerCode', () => {
         const cluster = Zcl.Utils.getCluster(0xfc00);
+        expect(cluster.ID).toBe(0xfc00);
+        expect(cluster.name).toBe('manuSpecificUbisysDeviceSetup');
+    });
+
+    it('Zcl utils get cluster with manufacturerCode', () => {
+        const cluster = Zcl.Utils.getCluster(0xfc00, 0x100b);
         expect(cluster.ID).toBe(0xfc00);
         expect(cluster.name).toBe('manuSpecificPhilips');
     });
@@ -1214,7 +1338,7 @@ describe('Zcl', () => {
     it('Zcl utils get cluster manufacturerCode wrong', () => {
         const cluster = Zcl.Utils.getCluster(0xfc00, 123);
         expect(cluster.ID).toBe(0xfc00);
-        expect(cluster.name).toBe('manuSpecificPhilips');
+        expect(cluster.name).toBe('manuSpecificUbisysDeviceSetup');
     });
 
     it('Zcl utils get cluster attributes manufacturerCode', () => {
@@ -1253,5 +1377,252 @@ describe('Zcl', () => {
         const cluster = Zcl.Utils.getCluster('genOnOff');
         expect(() => cluster.getCommand('notExisting'))
             .toThrowError("Cluster 'genOnOff' has no command 'notExisting'");
+    });
+
+    it('Zcl green power readGdp commissioning', () => {
+        const buffer = [
+            0xFF, // device
+            0x00, // options
+        ];
+        const frame = new BuffaloZcl(Buffer.from(buffer));
+
+        expect(frame.read('GDP_FRAME', {
+            payload: {
+                commandID: 0xE0,
+            },
+        })).toStrictEqual({
+            deviceID: 0xFF,
+            options: 0x00,
+            extendedOptions: 0x00,
+            securityKey: Buffer.alloc(16),
+            keyMic: 0,
+            outgoingCounter: 0,
+            applicationInfo: 0,
+            manufacturerID: 0,
+            modelID: 0,
+            numGdpCommands: 0,
+            gpdCommandIdList: Buffer.alloc(0),
+            numServerClusters: 0,
+            numClientClusters: 0,
+            gpdServerClusters: Buffer.alloc(0),
+            gpdClientClusters: Buffer.alloc(0),
+            applicationInfo: 0x00,
+        });
+    });
+
+    it('Zcl green power readGdp commissioning all options', () => {
+        const buffer = [
+            0xFF, // device
+            0x80 | 0x04, // options
+            0x20 | 0x40 | 0x80, // extended options
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // security key
+            0, 0, 0, 0, // key mic
+            0, 0, 0, 0, // outgoing counter
+            0x01 | 0x02 | 0x04 | 0x08, // application info
+            0, 0, // manufacturer ID
+            0, 0, // model ID
+            0, // num GDP commands + commands
+            0, // clusters
+        ];
+        const frame = new BuffaloZcl(Buffer.from(buffer));
+
+        expect(frame.read('GDP_FRAME', {
+            payload: {
+                commandID: 0xE0,
+            },
+        })).toStrictEqual({
+            deviceID: 0xFF,
+            options: 0x80 | 0x04,
+            extendedOptions: 0x20 | 0x40 | 0x80,
+            securityKey: Buffer.alloc(16),
+            keyMic: 0,
+            outgoingCounter: 0,
+            applicationInfo: 0,
+            manufacturerID: 0,
+            modelID: 0,
+            numGdpCommands: 0,
+            gpdCommandIdList: Buffer.alloc(0),
+            numServerClusters: 0,
+            numClientClusters: 0,
+            gpdServerClusters: Buffer.alloc(0),
+            gpdClientClusters: Buffer.alloc(0),
+            applicationInfo: 0x01 | 0x02 | 0x04 | 0x08,
+        });
+    });
+
+    it('Zcl green power readGdp channel request', () => {
+        const buffer = [
+            0xFA,
+        ];
+        const frame = new BuffaloZcl(Buffer.from(buffer));
+
+        expect(frame.read('GDP_FRAME', {
+            payload: {
+                commandID: 0xE3,
+            },
+        })).toStrictEqual({
+            nextChannel: 0xA,
+            nextNextChannel: 0xF,
+        });
+    });
+
+    it('Zcl green power readGdp attribute report', () => {
+        const buffer = [
+            0x12,0x34, // Manufacturer ID
+            0xFF,0xFF, // Cluster ID
+            0x00,0x00, // Attribute ID
+            DataType.uint32, // Attribute Type
+            0x00,0x01,0x02,0x03,
+            0x01,0x00,
+            DataType.charStr,
+            0x06,0x5a,0x49,0x47,0x42,0x45,0x45,
+            0x02,0x00,
+            DataType.boolean,
+            0x01,
+        ];
+        const frame = new BuffaloZcl(Buffer.from(buffer));
+
+        expect(frame.read('GDP_FRAME', {
+            payload: {
+                commandID: 0xA1,
+                payloadSize: buffer.length,
+            },
+        })).toStrictEqual({
+            manufacturerCode: 13330,
+            clusterID: 65535,
+            attributes: { 
+                '0': 50462976,
+                '1': 'ZIGBEE',
+                '2': 1,
+            }
+        });
+    });
+
+    it('Zcl green power writeGdp commissioning', () => {
+        const expected = [
+            1,     // length
+            0,    // options
+        ];
+        const frame = new BuffaloZcl(Buffer.alloc(2));
+
+        frame.write('GDP_FRAME', {
+            commandID: 0xF0,
+            options: 0,
+            panID: 0,
+            securityKey: Buffer.alloc(16),
+            keyMic: 0,
+            frameCounter: 0,
+        }, null);
+
+        expect(frame.getWritten()).toStrictEqual(Buffer.from(expected));
+    });
+
+    it('Zcl green power writeGdp commissioning all options', () => {
+        const expected = [
+            27,         // length
+            0b11111,    // options
+            0xFF, 0xFF, // PAN ID
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // security key
+            0, 0, 0, 0, // key mic
+            0, 0, 0, 0, // frame counter
+        ];
+        const frame = new BuffaloZcl(Buffer.alloc(28));
+
+        frame.write('GDP_FRAME', {
+            commandID: 0xF0,
+            options: 0b11111,
+            panID: 0xFFFF,
+            securityKey: Buffer.alloc(16),
+            keyMic: 0,
+            frameCounter: 0,
+        }, null);
+
+        expect(frame.getWritten()).toStrictEqual(Buffer.from(expected));
+    });
+
+    it('Zcl green power writeGdp custom reply', () => {
+        const expected = [
+            6, // length
+            90,73,71,66,69,69, // ZIGBEE
+        ];
+
+
+        const frame = new BuffaloZcl(Buffer.alloc(7));
+        frame.write('GDP_FRAME', {
+            commandID: 0xF4,
+            buffer: Buffer.from("ZIGBEE"),
+        }, null);
+
+        expect(frame.getWritten()).toStrictEqual(Buffer.from(expected))
+    });
+
+    it('Zcl green power writeGdp unhandled command', () => {
+        const frame = new BuffaloZcl(Buffer.alloc(7));
+        frame.write('GDP_FRAME', {
+            commandID: 0x1FF,
+        }, null);
+        
+        expect(frame.getWritten()).toStrictEqual(Buffer.alloc(0))
+    });
+
+    it('Zcl green power writeGdp channel configuration', () => {
+        const expected = [
+            1, // length
+            0xF, // Channel 26
+        ];
+
+        const frame = new BuffaloZcl(Buffer.alloc(2));
+        frame.write('GDP_FRAME', {
+            commandID: 0xF3,
+            operationalChannel: 0xF,
+            basic: false,
+        }, null);
+
+        expect(frame.getWritten()).toStrictEqual(Buffer.from(expected))
+    });
+
+    it('Zcl green power writeGdp channel configuration basic', () => {
+        const expected = [
+            1, // length
+            0x1F, // Channel 26 + Basic
+        ];
+
+        const frame = new BuffaloZcl(Buffer.alloc(2));
+        frame.write('GDP_FRAME', {
+            commandID: 0xF3,
+            operationalChannel: 0xF,
+            basic: true,
+        }, null);
+
+        expect(frame.getWritten()).toStrictEqual(Buffer.from(expected))
+    });
+    
+    it('ZclFrame parse MiBoxer zone configuration command', () => {
+        const zoneConfigPayload = [0x11, 0x01, 0xf0, 0x08, 0x84, 0x2b, 0x01, 0x98, 0x2b, 0x02, 0xac, 0x2b, 0x03, 0xc0, 0x2b, 0x04, 0xd4, 0x2b, 0x05, 0xe8, 0x2b, 0x06, 0xfc, 0x2b, 0x07, 0x10, 0x2c, 0x08];
+        const zoneConfigFrame = Zcl.ZclFrame.fromBuffer(Zcl.Utils.getCluster("genGroups").ID, Buffer.from(zoneConfigPayload));
+        expect(zoneConfigFrame.Payload.zones).toStrictEqual([
+            {zoneNum: 1, groupId: 0x2b84},
+            {zoneNum: 2, groupId: 0x2b98},
+            {zoneNum: 3, groupId: 0x2bac},
+            {zoneNum: 4, groupId: 0x2bc0},
+            {zoneNum: 5, groupId: 0x2bd4},
+            {zoneNum: 6, groupId: 0x2be8},
+            {zoneNum: 7, groupId: 0x2bfc},
+            {zoneNum: 8, groupId: 0x2c10},
+        ]);
+    });
+    it('ZclFrame serialize MiBoxer zone configuration command', () => {
+        const testZones = [
+            {zoneNum: 1, groupId: 0x2b84},
+            {zoneNum: 2, groupId: 0x2b98},
+            {zoneNum: 3, groupId: 0x2bac},
+            {zoneNum: 4, groupId: 0x2bc0},
+            {zoneNum: 5, groupId: 0x2bd4},
+            {zoneNum: 6, groupId: 0x2be8},
+            {zoneNum: 7, groupId: 0x2bfc},
+            {zoneNum: 8, groupId: 0x2c10},
+        ];
+        const zoneConfigFrame = Zcl.ZclFrame.create(FrameType.SPECIFIC, Direction.CLIENT_TO_SERVER, true, null, 1, 'miboxerSetZones', Zcl.Utils.getCluster("genGroups").ID, { zones: testZones });
+        expect(zoneConfigFrame.toBuffer()).toStrictEqual(Buffer.from([0x11, 0x01, 0xf0, 0x08, 0x84, 0x2b, 0x01, 0x98, 0x2b, 0x02, 0xac, 0x2b, 0x03, 0xc0, 0x2b, 0x04, 0xd4, 0x2b, 0x05, 0xe8, 0x2b, 0x06, 0xfc, 0x2b, 0x07, 0x10, 0x2c, 0x08]));
     });
 });

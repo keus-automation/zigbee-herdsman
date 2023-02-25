@@ -6,7 +6,7 @@ import {EmberMulticastTableEntry} from './types/struct';
 import Debug from "debug";
 
 const debug = {
-    log: Debug('zigbee-herdsman:adapter:ezsp:multicast'),
+    log: Debug('zigbee-herdsman:adapter:ezsp:cast'),
 };
 
 
@@ -64,7 +64,7 @@ export class Multicast {
             entry.endpoint = endpoint;
             entry.multicastId = group_id;
             entry.networkIndex = 0;
-            const [status] = await this.driver.ezsp.setMulticastTableEntry(idx, entry);
+            const status = await this.driver.ezsp.setMulticastTableEntry(idx, entry);
             if (status !== EmberStatus.SUCCESS) {
                 debug.log(
                     "Set MulticastTableEntry #%s for %s multicast id: %s",

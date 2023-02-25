@@ -1,6 +1,15 @@
 import {Buffalo, TsType} from '../buffalo';
 import {DataType} from './definition';
 import {BuffaloZclOptions, StructuredIndicatorType, StructuredSelector, ZclArray} from './tstype';
+import * as Utils from './utils';
+import Debug from "debug";
+
+const debug = {
+    info: Debug('zigbee-herdsman:controller:buffaloZcl'),
+    error: Debug('zigbee-herdsman:controller:buffaloZcl'),
+};
+
+interface KeyValue {[s: string | number]: number | string}
 
 const aliases: {[s: string]: string} = {
     'boolean': 'uint8',
@@ -65,12 +74,63 @@ interface Gdp {
     securityKey: Buffer;
     keyMic: number;
     outgoingCounter: number;
+    applicationInfo: number;
+    manufacturerID: number;
+    modelID: number;
+    numGdpCommands: number;
+    gpdCommandIdList: Buffer;
+    numServerClusters: number;
+    numClientClusters: number
+    gpdServerClusters: Buffer;
+    gpdClientClusters: Buffer;
+}
+
+interface GdpChannelRequest {
+    nextChannel: number;
+    nextNextChannel: number;
+}
+
+interface GdpChannelConfiguration {
+    commandID: number;
+    operationalChannel: number;
+    basic: boolean;
+}
+
+interface GdpCommissioningReply {
+    commandID: number;
+    options: number;
+    panID: number;
+    securityKey: Buffer;
+    keyMic: number;
+    frameCounter: number;
+}
+
+interface GdpCustomReply {
+    commandID: number;
+    buffer: Buffer;
+}
+
+interface GdpAttributeReport {
+    manufacturerCode: number;
+    clusterID: number;
+    attributes: KeyValue;
 }
 
 interface ExtensionFieldSet {
     clstId: number;
     len: number;
     extField: TsType.Value[];
+}
+
+interface TuyaDataPointValue {
+    dp: number;
+    datatype: number;
+    data: Buffer;
+}
+
+interface MiboxerZone {
+    zoneNum: number;
+    groupId: number;
 }
 
 class BuffaloZcl extends Buffalo {
@@ -258,21 +318,211 @@ class BuffaloZcl extends Buffalo {
         }
     }
 
-    private readGdpFrame(options: TsType.Options): Gdp | {raw: Buffer} | Record<string, never> {
+    private readGdpFrame(options: TsType.Options): Gdp | GdpChannelRequest | GdpAttributeReport |
+            {raw: Buffer} | Record<string, never> {
         // Commisioning
-        if (options.payload.commandID === 224) {
-            return {
+        if (options.payload.commandID === 0xE0) {
+            const frame = {
                 deviceID: this.readUInt8(),
                 options: this.readUInt8(),
-                extendedOptions: this.readUInt8(),
-                securityKey: this.readBuffer(16),
-                keyMic: this.readUInt32(),
-                outgoingCounter: this.readUInt32(),
+                extendedOptions: 0,
+                securityKey: Buffer.alloc(16),
+                keyMic: 0,
+                outgoingCounter: 0,
+                applicationInfo: 0,
+                manufacturerID: 0,
+                modelID: 0,
+                numGdpCommands: 0,
+                gpdCommandIdList: Buffer.alloc(0),
+                numServerClusters: 0,
+                numClientClusters: 0,
+                gpdServerClusters: Buffer.alloc(0),
+                gpdClientClusters: Buffer.alloc(0),
             };
+
+            if (frame.options & 0x80) {
+                frame.extendedOptions = this.readUInt8();
+            }
+
+            if (frame.extendedOptions & 0x20) {
+                frame.securityKey = this.readBuffer(16);
+            }
+
+            if (frame.extendedOptions & 0x40) {
+                frame.keyMic = this.readUInt32();
+            }
+
+            if (frame.extendedOptions & 0x80) {
+                frame.outgoingCounter = this.readUInt32();
+            }
+
+            if (frame.options & 0x04) {
+                frame.applicationInfo = this.readUInt8();
+            }
+
+            if (frame.applicationInfo & 0x01) {
+                frame.manufacturerID = this.readUInt16();
+            }
+
+            if (frame.applicationInfo & 0x02) {
+                frame.modelID = this.readUInt16();
+            }
+
+            if (frame.applicationInfo & 0x04) {
+                frame.numGdpCommands = this.readUInt8();
+                frame.gpdCommandIdList = this.readBuffer(frame.numGdpCommands);
+            }
+
+            if (frame.applicationInfo & 0x08) {
+                const len = this.readUInt8();
+                frame.numServerClusters = len & 0xF;
+                frame.numClientClusters = (len >> 4) & 0xF;
+
+                frame.gpdServerClusters = this.readBuffer(2 * frame.numServerClusters);
+                frame.gpdClientClusters = this.readBuffer(2 * frame.numClientClusters);
+            }
+
+            return frame;
+        // Channel Request
+        } else if (options.payload.commandID === 0xE3) {
+            const options = this.readUInt8();
+            return {
+                nextChannel: options & 0xF,
+                nextNextChannel: options >> 4
+            };
+        // Manufacturer-specific Attribute Reporting
+        } else if (options.payload.commandID == 0xA1) {
+            const start = this.position;
+            const frame = {
+                manufacturerCode: this.readUInt16(),
+                clusterID: this.readUInt16(),
+                attributes: {} as KeyValue,
+            };
+
+            const cluster = Utils.getCluster(
+                frame.clusterID,
+                frame.manufacturerCode,
+            );
+            
+            while (this.position - start < options.payload.payloadSize) {
+                const attributeID = this.readUInt16();
+                const type = this.readUInt8();
+
+
+                let attribute: number | string = attributeID;
+                try {
+                    attribute = cluster.getAttribute(attributeID).name;
+                } catch {
+                    debug.info("Unknown attribute " + attributeID + " in cluster " + cluster.name);
+                }
+
+                frame.attributes[attribute] = this.read(DataType[type], options);
+            }
+
+            return frame;
         } else if (this.position != this.buffer.length) {
             return {raw: this.buffer.slice(this.position)};
         } else {
             return {};
+        }
+    }
+
+    private writeGdpFrame(value: GdpCommissioningReply | GdpChannelConfiguration | GdpCustomReply): void{
+        if (value.commandID == 0xF0) { // Commissioning Reply
+            const v = <GdpCommissioningReply> value;
+
+            const panIDPresent = v.options & (1 << 0);
+            const gpdSecurityKeyPresent = v.options & (1 << 1);
+            const gpdKeyEncryption = v.options & (1 << 2);
+            const securityLevel = v.options & (3 << 3) >> 3;
+
+            const hasGPDKeyMIC = gpdKeyEncryption && gpdSecurityKeyPresent;
+            const hasFrameCounter = gpdSecurityKeyPresent &&
+                    gpdKeyEncryption &&
+                    (securityLevel === 0b10 || securityLevel === 0b11);
+
+            this.writeUInt8(1 +
+                    (panIDPresent ? 2 : 0) +
+                    (gpdSecurityKeyPresent ? 16 : 0) +
+                    (hasGPDKeyMIC ? 4 : 0) +
+                    (hasFrameCounter ? 4 : 0)); // Length
+            this.writeUInt8(v.options);
+
+            if (panIDPresent) {
+                this.writeUInt16(v.panID);
+            }
+
+            if (gpdSecurityKeyPresent) {
+                this.writeBuffer(v.securityKey, 16);
+            }
+
+            if (hasGPDKeyMIC) {
+                this.writeUInt32(v.keyMic);
+            }
+
+            if (hasFrameCounter) {
+                this.writeUInt32(v.frameCounter);
+            }
+        } else if (value.commandID == 0xF3) { // Channel configuration
+            const v = <GdpChannelConfiguration> value;
+            this.writeUInt8(1);
+            this.writeUInt8(v.operationalChannel & 0xF | ((v.basic ? 1 : 0) << 4));
+        } else if (value.commandID == 0xF4 ||
+                value.commandID == 0xF5 ||
+                (value.commandID >= 0xF7 && value.commandID <= 0xFF)) {
+            // Other commands sent to GPD
+            const v = <GdpCustomReply> value;
+            this.writeUInt8(v.buffer.length);
+            this.writeBuffer(v.buffer, v.buffer.length);
+        }
+    }
+
+    private readListTuyaDataPointValues(): TuyaDataPointValue[] {
+        const value = [];
+
+        while (this.isMore()) {
+            try {
+                const dp = this.readUInt8();
+                const datatype = this.readUInt8();
+                const len_hi = this.readUInt8();
+                const len_lo = this.readUInt8();
+                const data = this.readBuffer(len_lo + (len_hi << 8));
+                value.push({dp, datatype, data});
+            } catch (error) {
+                break;
+            }
+        }
+        return value;
+    }
+
+    private writeListTuyaDataPointValues(dpValues: TuyaDataPointValue[]): void {
+        for (const dpValue of dpValues) {
+            this.writeUInt8(dpValue.dp);
+            this.writeUInt8(dpValue.datatype);
+            const dataLen = dpValue.data.length;
+            this.writeUInt8((dataLen >> 8) & 0xFF);
+            this.writeUInt8(dataLen & 0xFF);
+            this.writeBuffer(dpValue.data, dataLen);
+        }
+    }
+
+    private readListMiboxerZones(): MiboxerZone[] {
+        const value = [];
+        const len = this.readUInt8();
+        for (let i = 0; i < len; i++) {
+            value.push({
+                groupId: this.readUInt16(),
+                zoneNum: this.readUInt8(),
+            });
+        }
+        return value;
+    }
+
+    private writeListMiboxerZones(values: MiboxerZone[]): void {
+        this.writeUInt8(values.length);
+        for (const value of values) {
+            this.writeUInt16(value.groupId);
+            this.writeUInt8(value.zoneNum);
         }
     }
 
@@ -349,6 +599,12 @@ class BuffaloZcl extends Buffalo {
             return this.writeListZoneInfo(value);
         } else if (type === 'LIST_THERMO_TRANSITIONS') {
             return this.writeListThermoTransitions(value);
+        } else if (type === 'LIST_TUYA_DATAPOINT_VALUES') {
+            return this.writeListTuyaDataPointValues(value);
+        } else if (type === 'LIST_MIBOXER_ZONES') {
+            return this.writeListMiboxerZones(value);
+        } else if (type === 'GDP_FRAME') {
+            return this.writeGdpFrame(value);
         } else if (type === 'uint48') {
             return this.writeUInt48(value);
         } else if (type === 'uint56') {
@@ -379,7 +635,6 @@ class BuffaloZcl extends Buffalo {
 
     public read(type: string, options: BuffaloZclOptions): TsType.Value {
         type = aliases[type] || type;
-
         if (type === 'USE_DATA_TYPE') {
             return this.readUseDataType(options);
         } else if (type === 'EXTENSION_FIELD_SETS') {
@@ -390,6 +645,10 @@ class BuffaloZcl extends Buffalo {
             return this.readListThermoTransitions(options);
         } else if (type === 'GDP_FRAME') {
             return this.readGdpFrame(options);
+        } else if (type === 'LIST_TUYA_DATAPOINT_VALUES') {
+            return this.readListTuyaDataPointValues();
+        } else if (type === 'LIST_MIBOXER_ZONES') {
+            return this.readListMiboxerZones();
         } else if (type === 'uint40') {
             return this.readUInt40();
         } else if (type === 'uint48') {

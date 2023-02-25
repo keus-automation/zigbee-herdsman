@@ -18,12 +18,12 @@ import {
 } from "../driver/constants";
 import {RawAPSDataRequestPayload} from "../driver/commandType";
 import ZiGateObject from "../driver/ziGateObject";
-import { Buffalo } from "../../../buffalo";
+import {Buffalo} from "../../../buffalo";
 import {LoggerStub} from "../../../controller/logger-stub";
 import * as Models from "../../../models";
 
 const debug = Debug('adapter');
-
+const default_bind_group = 901;  // https://github.com/Koenkk/zigbee-herdsman-converters/blob/master/lib/constants.js#L3
 interface WaitressMatcher {
     address: number | string;
     endpoint: number;
@@ -90,6 +90,14 @@ class ZiGateAdapter extends Adapter {
                 deviceType: DEVICE_TYPE.coordinator
             });
             await this.initNetwork();
+
+            await this.driver.sendCommand(ZiGateCommandCode.AddGroup, {
+                addressMode: ADDRESS_MODE.short ,
+                shortAddress: 0x0000,
+                sourceEndpoint:0x01,
+                destinationEndpoint:0x01,
+                groupAddress: default_bind_group
+            });
         } catch (error) {
             throw new Error("failed to connect to zigate adapter " + error.message);
         }
@@ -143,7 +151,7 @@ class ZiGateAdapter extends Adapter {
             })
             .catch((e) => {
                 debug.error(e);
-                return Promise.reject()
+                return Promise.reject(new Error("" + e))
             });
     };
 
@@ -159,6 +167,10 @@ class ZiGateAdapter extends Adapter {
         this.joinPermitted = result.payload.status === 0;
     };
 
+    public async addInstallCode(ieeeAddress: string, key: Buffer): Promise<void> {
+        return Promise.reject(new Error('Add install code is not supported'));
+    }
+
     public async reset(type: 'soft' | 'hard'): Promise<void> {
         debug.log('reset %s', type);
 
@@ -168,14 +180,6 @@ class ZiGateAdapter extends Adapter {
             await this.driver.sendCommand(ZiGateCommandCode.ErasePersistentData, {}, 5000);
         }
         return Promise.resolve();
-    };
-
-    public async supportsLED(): Promise<boolean> {
-        return false;
-    };
-
-    public setLED(enabled: boolean): Promise<void> {
-        return Promise.reject();
     };
 
     public async getNetworkParameters(): Promise<TsType.NetworkParameters> {
@@ -188,7 +192,7 @@ class ZiGateAdapter extends Adapter {
                     channel: <number>NetworkStateResponse.payload.Channel
                 }
                 return Promise.resolve(resultPayload)
-            }).catch(() => Promise.reject());
+            }).catch(() => Promise.reject(new Error("Get network parameters failed")));
     };
 
     /**
@@ -206,7 +210,7 @@ class ZiGateAdapter extends Adapter {
     public async setTransmitPower(value: number): Promise<void> {
         debug.log('setTransmitPower, %o', arguments);
         return this.driver.sendCommand(ZiGateCommandCode.SetTXpower, {value: value})
-            .then(() => Promise.resolve()).catch(() => Promise.reject());
+            .then(() => Promise.resolve()).catch(() => Promise.reject(new Error("Set transmitpower failed")));
     };
 
     public async lqi(networkAddress: number): Promise<TsType.LQI> {
@@ -267,8 +271,9 @@ class ZiGateAdapter extends Adapter {
                         + "/" + response.tableEntrys + " entrys");
                     return response;
                 } catch (error) {
-                    debug.log("LQI REQUEST FAILED - addr: 0x" + networkAddress.toString(16) + " " + error);
-                    return Promise.reject();
+                    const msg = "LQI REQUEST FAILED - addr: 0x" + networkAddress.toString(16) + " " + error;
+                    debug.log(msg);
+                    return Promise.reject(new Error(msg));
                 }
             };
 
@@ -326,9 +331,9 @@ class ZiGateAdapter extends Adapter {
 
                 return {manufacturerCode: manufacturer, type};
             } catch (error) {
-                debug.error("RECEIVING NODE_DESCRIPTOR FAILED - addr: 0x"
-                    + networkAddress.toString(16) + " " + error);
-                return Promise.reject();
+                const msg = "RECEIVING NODE_DESCRIPTOR FAILED - addr: 0x" + networkAddress.toString(16) + " " + error;
+                debug.error(msg);
+                return Promise.reject(new Error(msg));
             }
         }, networkAddress);
     };
@@ -357,7 +362,7 @@ class ZiGateAdapter extends Adapter {
 
             } catch (error) {
                 debug.error("RECEIVING ActiveEndpoints FAILED, %o", error);
-                return Promise.reject();
+                return Promise.reject(new Error("RECEIVING ActiveEndpoints FAILED " + error));
             }
         }, networkAddress);
     };
@@ -403,9 +408,10 @@ class ZiGateAdapter extends Adapter {
                     return resultPayload;
                 }
             } catch (error) {
-                debug.error("RECEIVING SIMPLE_DESCRIPTOR FAILED - addr: 0x" + networkAddress.toString(16)
-                    + " EP:" + endpointID + " " + error);
-                return Promise.reject();
+                const msg = "RECEIVING SIMPLE_DESCRIPTOR FAILED - addr: 0x" + networkAddress.toString(16)
+                    + " EP:" + endpointID + " " + error;
+                debug.error(msg);
+                return Promise.reject(new Error(msg));
             }
 
         }, networkAddress);
@@ -422,7 +428,7 @@ class ZiGateAdapter extends Adapter {
                 targetExtendedAddress: sourceIeeeAddress,
                 targetEndpoint: sourceEndpoint,
                 clusterID: clusterID,
-                destinationAddressMode: (type === 'group') ? 0x01 : 0x03,
+                destinationAddressMode: (type === 'group') ? ADDRESS_MODE.group : ADDRESS_MODE.ieee,
                 destinationAddress: destinationAddressOrGroup,
             };
 
@@ -439,8 +445,9 @@ class ZiGateAdapter extends Adapter {
                 debug.log('Bind %s success', sourceIeeeAddress);
                 return Promise.resolve();
             } else {
-                debug.error('Bind %s failed', sourceIeeeAddress);
-                return Promise.reject();
+                const msg = `Bind ${sourceIeeeAddress} failed`;
+                debug.error(msg);
+                return Promise.reject(new Error(msg));
             }
         }, destinationNetworkAddress);
     };
@@ -456,7 +463,7 @@ class ZiGateAdapter extends Adapter {
                 targetExtendedAddress: sourceIeeeAddress,
                 targetEndpoint: sourceEndpoint,
                 clusterID: clusterID,
-                destinationAddressMode: (type === 'group') ? ADDRESS_MODE.group : ADDRESS_MODE.short,
+                destinationAddressMode: (type === 'group') ? ADDRESS_MODE.group : ADDRESS_MODE.ieee,
                 destinationAddress: destinationAddressOrGroup,
             };
 
@@ -474,8 +481,9 @@ class ZiGateAdapter extends Adapter {
                 debug.log('Unbind %s success', sourceIeeeAddress);
                 return Promise.resolve();
             } else {
-                debug.error('Unbind %s failed', sourceIeeeAddress);
-                return Promise.reject();
+                const msg = `Unbind ${sourceIeeeAddress} failed`;
+                debug.error(msg);
+                return Promise.reject(new Error(msg));
             }
         }, destinationNetworkAddress);
     };
@@ -492,7 +500,7 @@ class ZiGateAdapter extends Adapter {
             return this.driver.sendCommand(ZiGateCommandCode.ManagementLeaveRequest, payload)
                 .then((Response) => {
                     return Promise.resolve()
-                }).catch(() => Promise.reject());
+                }).catch(() => Promise.reject(new Error("ManagementLeaveRequest failed")));
         }, networkAddress);
     };
 
@@ -703,24 +711,24 @@ class ZiGateAdapter extends Adapter {
      */
     public async setChannelInterPAN(channel: number): Promise<void> {
         debug.log('setChannelInterPAN', arguments)
-        return Promise.reject();
+        return Promise.reject("Not supported");
     };
 
     public async sendZclFrameInterPANToIeeeAddr(zclFrame: ZclFrame, ieeeAddress: string): Promise<void> {
         debug.log('sendZclFrameInterPANToIeeeAddr', arguments)
-        return Promise.reject();
+        return Promise.reject("Not supported");
     };
 
     public async sendZclFrameInterPANBroadcast(
         zclFrame: ZclFrame, timeout: number
     ): Promise<Events.ZclDataPayload> {
         debug.log('sendZclFrameInterPANBroadcast', arguments)
-        return Promise.reject();
+        return Promise.reject("Not supported");
     };
 
     public restoreChannelInterPAN(): Promise<void> {
         debug.log('restoreChannelInterPAN', arguments)
-        return Promise.reject();
+        return Promise.reject("Not supported");
     };
 
 
