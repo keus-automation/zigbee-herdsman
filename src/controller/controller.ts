@@ -763,7 +763,7 @@ class Controller extends events.EventEmitter {
     public async broadcastToNetwork(
         clusterKey: number | string, commandKey: number | string, payload: KeyValue, endpoint: number, inputOptions?: BroadcastOptions
     ): Promise<void> {
-        let options: BroadcastOptions = {
+        const options: BroadcastOptions = {
             direction: ZclDirection.CLIENT_TO_SERVER,
             srcEndpoint: null,
             reservedBits: 0,
