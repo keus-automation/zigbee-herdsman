@@ -18,7 +18,6 @@ import {
 import Touchlink from './touchlink';
 import GreenPower from './greenPower';
 import {BackupUtils} from "../utils";
-import { ZHGlobalLogs } from '../globalLogs';
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore
@@ -89,14 +88,6 @@ class Controller extends events.EventEmitter {
 
     public getDbInstKey():string {
         return this.dbInstKey;
-    }
-
-    public enableLogs(namespace: string): void {
-        ZHGlobalLogs.enableLogs(namespace);
-    }
-
-    public disableLogs(): void {
-        ZHGlobalLogs.disableLogs();
     }
 
     /**
