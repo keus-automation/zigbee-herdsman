@@ -8,7 +8,6 @@ import Device from './controller/model/device';
 import Group from './controller/model/group';
 import Endpoint from './controller/model/endpoint';
 import BufferWriter from './zcl/buffaloZcl';
-import { ZHGlobalLogs } from './globalLogs';
 
 export {
     Events, MessagePayload, MessagePayloadType, DeviceInterviewPayload, DeviceAnnouncePayload,
@@ -19,4 +18,3 @@ export { Group };
 export { Endpoint };
 export { BufferWriter };
 export { Zcl, Controller };
-export { ZHGlobalLogs };
