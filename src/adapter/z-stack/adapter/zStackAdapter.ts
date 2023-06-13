@@ -263,7 +263,7 @@ class ZStackAdapter extends Adapter {
         await this.znp.request(Subsystem.ZDO, 'extRouteDisc', payload);
 
         if (wait) {
-            await Wait(3000);
+            await Wait(6000);  //bigger network, wait longer for route discovery to complete
         }
     }
 
@@ -413,7 +413,8 @@ class ZStackAdapter extends Adapter {
                  * MAC_NO_RESOURCES: Operation could not be completed because no memory resources are available,
                  * wait some time and retry.
                  */
-                await Wait(2000);
+                //await Wait(2000); akhilesh
+                await Wait(400);
                 return this.sendZclFrameToEndpointInternal(
                     ieeeAddr, networkAddress, endpoint, sourceEndpoint, zclFrame, timeout, disableResponse,
                     disableRecovery, responseAttempt, dataRequestAttempt + 1, checkedNetworkAddress, discoveredRoute,
@@ -469,7 +470,8 @@ class ZStackAdapter extends Adapter {
                     } catch {}
                 } else {
                     debug('Wait 2000ms');
-                    await Wait(2000);
+                    //await Wait(2000);  akhilesh
+                    await Wait(400);
                 }
 
                 return this.sendZclFrameToEndpointInternal(
@@ -486,7 +488,7 @@ class ZStackAdapter extends Adapter {
                 return result;
             } catch (error) {
                 debug('Response timeout (%s:%d,%d)', ieeeAddr, networkAddress, responseAttempt);
-                if (responseAttempt === 1) {
+                if (responseAttempt === 1 && !discoveredRoute ) {
                     await this.discoverRoute(networkAddress);
                 } else if (responseAttempt > 2) {
                     throw new Error('Request timed out');
