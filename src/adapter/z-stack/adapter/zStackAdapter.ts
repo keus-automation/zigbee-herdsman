@@ -645,8 +645,8 @@ class ZStackAdapter extends Adapter {
         destinationNetworkAddress: number, sourceIeeeAddress: string, sourceEndpoint: number,
         clusterID: number, destinationAddressOrGroup: string | number, type: 'endpoint' | 'group',
         destinationEndpoint?: number
-    ): Promise<void> {
-        return this.queue.execute<void>(async () => {
+    ): Promise<any> {
+        return this.queue.execute<void>(async ():Promise<any> => {
             this.checkInterpanLock();
             const responsePayload = {srcaddr: destinationNetworkAddress};
             const response = this.znp.waitFor(Type.AREQ, Subsystem.ZDO, 'bindRsp', responsePayload);
@@ -662,7 +662,23 @@ class ZStackAdapter extends Adapter {
             };
 
             await this.znp.request(Subsystem.ZDO, 'bindReq', payload, response.ID);
-            await response.start().promise;
+            
+            let result = null
+            try {
+                let bindRsp = await response.start().promise;
+
+                result = {
+                    status: bindRsp.payload.status
+                }
+            }
+            catch {
+                result = {
+                    status: null
+                }
+            }
+            debug("Bind Result : ", result);
+            return result;
+            
         }, destinationNetworkAddress);
     }
 
