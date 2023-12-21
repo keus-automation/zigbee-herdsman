@@ -535,7 +535,7 @@ class Endpoint extends Entity {
         debug.info(log);
 
         try {
-            await Entity.adapters[this._dbInstKey].unbind(
+            const result = await Entity.adapters[this._dbInstKey].unbind(
                 this.deviceNetworkAddress, this.deviceIeeeAddress, this.ID, cluster.ID, destinationAddress, type,
                 target instanceof Endpoint ? target.ID : null,
             );
@@ -549,6 +549,8 @@ class Endpoint extends Entity {
                 this._binds.splice(index, 1);
                 this.save();
             }
+            return result;
+
         } catch (error) {
             error.message = `${log} failed (${error.message})`;
             debug.error(error.message);
