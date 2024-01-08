@@ -89,6 +89,7 @@ const CommandsLookup: {[s: string]: MessagePayloadType} = {
     'queryNextImageRequest': 'commandQueryNextImageRequest',
     'unlockDoorRsp' : 'unlockDoorRsp',
     'lockDoorRsp' : 'lockDoorRsp',
+    'setPinCodeRsp' : 'setPinCodeRsp',
     'alarm' : 'alarm',
 
     // Keus Specific commands
@@ -154,7 +155,7 @@ type MessagePayloadType =
     'commandAtHome' | 'commandGoOut' | 'commandCinema' | 'commandRepast' | 'commandSleep' |
     'commandStudyKeyRsp' | 'commandCreateIdRsp' | 'commandGetIdAndKeyCodeListRsp' | 'commandSetTimeRequest' |
     'commandGetPanelStatus' | 'commandCheckIn' | 'commandActiveStatusReport' | 'commandMoveToHue' | 'commandStore'|
-    'commandWiserSmartSetSetpoint' | 'commandWiserSmartCalibrateValve' | 'commandDanfossSetpointCommand'| 'unlockDoorRsp' | 'lockDoorRsp' |
+    'commandWiserSmartSetSetpoint' | 'commandWiserSmartCalibrateValve' | 'commandDanfossSetpointCommand'| 'unlockDoorRsp' | 'lockDoorRsp' | 'setPinCodeRsp' |
     'alarm';
 
 interface MessagePayload {
