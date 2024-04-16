@@ -719,6 +719,12 @@ class ZStackAdapter extends Adapter {
         // debug('Sec Device Remove', resultSecDeviceRemove);
     }
 
+    public async addOfflineDevice(ieeeAddr: string, nwkAddr: number, linkKey: Buffer): Promise<void> {
+
+        await this.adapterManager.addOfflineDevice(ieeeAddr.split("0x")[1], nwkAddr, linkKey)
+
+    }
+
     /**
      * Event handlers
      */

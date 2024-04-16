@@ -3,7 +3,7 @@ import {Znp} from "../znp";
 import Debug from "debug";
 import {ZnpVersion} from "./tstype";
 import {TsType} from "../../";
-import {DevStates, NvItemsIds, ZnpCommandStatus} from "../constants/common";
+import {DevStates, NvItemsIds, NvSystemIds, ZnpCommandStatus} from "../constants/common";
 import * as Structs from "../structs";
 import * as Models from "../../../models";
 import * as ZStackModels from "../models";
@@ -484,5 +484,51 @@ export class ZnpAdapterManager {
     private async writeConfigurationFlag(): Promise<void> {
         this.debug.commissioning("writing configuration flag to adapter NV memory");
         await this.nv.writeItem(this.options.version === ZnpVersion.zStack12 ? NvItemsIds.ZNP_HAS_CONFIGURED_ZSTACK1 : NvItemsIds.ZNP_HAS_CONFIGURED_ZSTACK3, Buffer.from([0x55]));
+    }
+
+    public async addOfflineDevice(ieeeAddr: string, nwkAddr: number, linkKey: Buffer): Promise<void> {
+
+        const currentAddressManagerTable = await this.nv.readTable("extended", NvSystemIds.ZSTACK, NvItemsIds.ZCD_NV_EX_ADDRMGR, undefined, Structs.addressManagerTable);
+        const currentSecurityManagerTable = await this.nv.readItem(NvItemsIds.APS_LINK_KEY_TABLE, 0, Structs.securityManagerTable);
+        const currentApsLinkKeyDataTable = await this.nv.readTable("extended", NvSystemIds.ZSTACK, NvItemsIds.ZCD_NV_EX_APS_KEY_DATA_TABLE, undefined, Structs.apsLinkKeyDataTable);
+        
+        const addressManagerTable = Structs.addressManagerTable(currentAddressManagerTable.capacity);
+        const securityManagerTable = Structs.securityManagerTable(currentSecurityManagerTable.capacity);
+        const apsLinkKeyDataTable = Structs.apsLinkKeyDataTable(currentApsLinkKeyDataTable.capacity);
+
+        const ame = addressManagerTable.getNextFree();
+        ame.nwkAddr = nwkAddr;
+        ame.extAddr = Buffer.from(ieeeAddr, 'hex');
+        ame.user = Structs.AddressManagerUser.Assoc;
+
+        ame.user |= Structs.AddressManagerUser.Security;
+
+        const apsKeyDataEntry = apsLinkKeyDataTable.getNextFree();
+        if (!apsKeyDataEntry) {
+            throw new Error(`target adapter aps link key data table size insufficient (size=${apsLinkKeyDataTable.capacity})`);
+        }
+        apsKeyDataEntry.key = Buffer.from(linkKey);
+        apsKeyDataEntry.rxFrmCntr = 0;
+        apsKeyDataEntry.txFrmCntr = 0;
+
+        const sme = securityManagerTable.getNextFree();
+        if (!sme) {
+            throw new Error(`target adapter security manager table size insufficient (size=${securityManagerTable.capacity})`);
+        }
+        sme.ami = addressManagerTable.indexOf(ame);
+        sme.keyNvId = apsLinkKeyDataTable.indexOf(apsKeyDataEntry);
+        sme.authenticationOption = Structs.SecurityManagerAuthenticationOption.AuthenticatedCBCK;
+
+        console.log(`\n--------------------------\nSuccessfully added offline device \n-----------------------\n`);
+        
+        /* write address manager table */
+        await this.nv.writeTable("extended", NvSystemIds.ZSTACK, NvItemsIds.ZCD_NV_EX_ADDRMGR, addressManagerTable);
+
+        /* write security manager table */
+        await this.nv.writeItem(NvItemsIds.APS_LINK_KEY_TABLE, securityManagerTable);
+        
+        /* write aps link key data table */
+        await this.nv.writeTable("extended", NvSystemIds.ZSTACK, NvItemsIds.ZCD_NV_EX_APS_KEY_DATA_TABLE, apsLinkKeyDataTable);
+    
     }
 }

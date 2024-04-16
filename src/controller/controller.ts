@@ -395,6 +395,26 @@ class Controller extends events.EventEmitter {
         }
     }
 
+    public async addOfflineDevice(ieeeAddr: string, nwkAddr: number, linkKey: Buffer ): Promise<void> {
+        await this.adapter.addOfflineDevice(ieeeAddr, nwkAddr, linkKey);
+        debug.log(`Device added offline '${ieeeAddr}'`);
+
+        const device = Device.create(
+            'Router', ieeeAddr, nwkAddr, 43690,
+            undefined, undefined, undefined, true, 
+            [{ID: 15, profileID: 1,  deviceID: 1026, inputClusters:[2849], outputClusters : [2849]}]
+            ,this.dbInstKey
+        );
+        
+
+        debug.log(`Added device to db '${ieeeAddr}'`);
+        console.log('Offline addition of ' + ieeeAddr + " successfull ")
+    }
+
+    public async manualBackup() {
+        return await this.backup();
+    }
+
     /**
      * Get all devices
      */

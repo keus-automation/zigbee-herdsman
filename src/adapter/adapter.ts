@@ -161,7 +161,7 @@ abstract class Adapter extends events.EventEmitter {
 
     public abstract forceRemoveDevice(ieeeAddr: string): Promise<void>;
 
-
+    public abstract addOfflineDevice(ieeeAddr: string, nwkAddr: number, linkKey: Buffer): Promise<void>;
 
     /**
      * ZCL
