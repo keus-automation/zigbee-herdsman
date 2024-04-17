@@ -488,47 +488,79 @@ export class ZnpAdapterManager {
 
     public async addOfflineDevice(ieeeAddr: string, nwkAddr: number, linkKey: Buffer): Promise<void> {
 
-        const currentAddressManagerTable = await this.nv.readTable("extended", NvSystemIds.ZSTACK, NvItemsIds.ZCD_NV_EX_ADDRMGR, undefined, Structs.addressManagerTable);
-        const currentSecurityManagerTable = await this.nv.readItem(NvItemsIds.APS_LINK_KEY_TABLE, 0, Structs.securityManagerTable);
-        const currentApsLinkKeyDataTable = await this.nv.readTable("extended", NvSystemIds.ZSTACK, NvItemsIds.ZCD_NV_EX_APS_KEY_DATA_TABLE, undefined, Structs.apsLinkKeyDataTable);
         
-        const addressManagerTable = Structs.addressManagerTable(currentAddressManagerTable.capacity);
-        const securityManagerTable = Structs.securityManagerTable(currentSecurityManagerTable.capacity);
-        const apsLinkKeyDataTable = Structs.apsLinkKeyDataTable(currentApsLinkKeyDataTable.capacity);
 
-        const ame = addressManagerTable.getNextFree();
+        /* entry add approach */
+        const testEntryIndex = 249
+
+        const ame = Structs.addressManagerEntry(Buffer.alloc(16, 0));
         ame.nwkAddr = nwkAddr;
         ame.extAddr = Buffer.from(ieeeAddr, 'hex');
         ame.user = Structs.AddressManagerUser.Assoc;
 
         ame.user |= Structs.AddressManagerUser.Security;
 
-        const apsKeyDataEntry = apsLinkKeyDataTable.getNextFree();
-        if (!apsKeyDataEntry) {
-            throw new Error(`target adapter aps link key data table size insufficient (size=${apsLinkKeyDataTable.capacity})`);
-        }
+        const apsKeyDataEntry = Structs.apsLinkKeyDataEntry(Buffer.alloc(16, 0));
         apsKeyDataEntry.key = Buffer.from(linkKey);
         apsKeyDataEntry.rxFrmCntr = 0;
         apsKeyDataEntry.txFrmCntr = 0;
 
-        const sme = securityManagerTable.getNextFree();
-        if (!sme) {
-            throw new Error(`target adapter security manager table size insufficient (size=${securityManagerTable.capacity})`);
-        }
-        sme.ami = addressManagerTable.indexOf(ame);
-        sme.keyNvId = apsLinkKeyDataTable.indexOf(apsKeyDataEntry);
+        const sme = Structs.securityManagerEntry(Buffer.alloc(16, 0));
+        sme.ami = testEntryIndex;
+        sme.keyNvId = testEntryIndex;
         sme.authenticationOption = Structs.SecurityManagerAuthenticationOption.AuthenticatedCBCK;
 
-        console.log(`\n--------------------------\nSuccessfully added offline device \n-----------------------\n`);
-        
-        /* write address manager table */
-        await this.nv.writeTable("extended", NvSystemIds.ZSTACK, NvItemsIds.ZCD_NV_EX_ADDRMGR, addressManagerTable);
+        /* write address manager table entry */
+        await this.nv.writeExtendedTableEntry(NvSystemIds.ZSTACK, NvItemsIds.ZCD_NV_EX_ADDRMGR, testEntryIndex, ame.serialize(this.nv.memoryAlignment));
 
-        /* write security manager table */
-        await this.nv.writeItem(NvItemsIds.APS_LINK_KEY_TABLE, securityManagerTable);
+        /* write security manager table entry */
+        await this.nv.writeExtendedTableEntry(NvSystemIds.ZSTACK, NvItemsIds.APS_LINK_KEY_TABLE, testEntryIndex, sme.serialize(this.nv.memoryAlignment));
         
-        /* write aps link key data table */
-        await this.nv.writeTable("extended", NvSystemIds.ZSTACK, NvItemsIds.ZCD_NV_EX_APS_KEY_DATA_TABLE, apsLinkKeyDataTable);
+        /* write aps link key data table entry*/
+        await this.nv.writeExtendedTableEntry(NvSystemIds.ZSTACK, NvItemsIds.ZCD_NV_EX_APS_KEY_DATA_TABLE, testEntryIndex, apsKeyDataEntry.serialize(this.nv.memoryAlignment));
+
+        /* table update approach */
+        // const currentAddressManagerTable = await this.nv.readTable("extended", NvSystemIds.ZSTACK, NvItemsIds.ZCD_NV_EX_ADDRMGR, undefined, Structs.addressManagerTable);
+        // const currentSecurityManagerTable = await this.nv.readItem(NvItemsIds.APS_LINK_KEY_TABLE, 0, Structs.securityManagerTable);
+        // const currentApsLinkKeyDataTable = await this.nv.readTable("extended", NvSystemIds.ZSTACK, NvItemsIds.ZCD_NV_EX_APS_KEY_DATA_TABLE, undefined, Structs.apsLinkKeyDataTable);
+        
+        // const addressManagerTable = Structs.addressManagerTable(currentAddressManagerTable.capacity);
+        // const securityManagerTable = Structs.securityManagerTable(currentSecurityManagerTable.capacity);
+        // const apsLinkKeyDataTable = Structs.apsLinkKeyDataTable(currentApsLinkKeyDataTable.capacity);
+
+        // const ame = addressManagerTable.getNextFree();
+        // ame.nwkAddr = nwkAddr;
+        // ame.extAddr = Buffer.from(ieeeAddr, 'hex');
+        // ame.user = Structs.AddressManagerUser.Assoc;
+
+        // ame.user |= Structs.AddressManagerUser.Security;
+
+        // const apsKeyDataEntry = apsLinkKeyDataTable.getNextFree();
+        // if (!apsKeyDataEntry) {
+        //     throw new Error(`target adapter aps link key data table size insufficient (size=${apsLinkKeyDataTable.capacity})`);
+        // }
+        // apsKeyDataEntry.key = Buffer.from(linkKey);
+        // apsKeyDataEntry.rxFrmCntr = 0;
+        // apsKeyDataEntry.txFrmCntr = 0;
+
+        // const sme = securityManagerTable.getNextFree();
+        // if (!sme) {
+        //     throw new Error(`target adapter security manager table size insufficient (size=${securityManagerTable.capacity})`);
+        // }
+        // sme.ami = addressManagerTable.indexOf(ame);
+        // sme.keyNvId = apsLinkKeyDataTable.indexOf(apsKeyDataEntry);
+        // sme.authenticationOption = Structs.SecurityManagerAuthenticationOption.AuthenticatedCBCK;
+
+        // console.log(`\n--------------------------\nSuccessfully added offline device \n-----------------------\n`);
+        
+        // /* write address manager table */
+        // await this.nv.writeTable("extended", NvSystemIds.ZSTACK, NvItemsIds.ZCD_NV_EX_ADDRMGR, addressManagerTable);
+
+        // /* write security manager table */
+        // await this.nv.writeItem(NvItemsIds.APS_LINK_KEY_TABLE, securityManagerTable);
+        
+        // /* write aps link key data table */
+        // await this.nv.writeTable("extended", NvSystemIds.ZSTACK, NvItemsIds.ZCD_NV_EX_APS_KEY_DATA_TABLE, apsLinkKeyDataTable);
     
     }
 }
