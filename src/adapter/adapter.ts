@@ -163,6 +163,8 @@ abstract class Adapter extends events.EventEmitter {
 
     public abstract addOfflineDevice(ieeeAddr: string, nwkAddr: number, linkKey: Buffer): Promise<void>;
 
+    public abstract manualRestore(): Promise<Models.Backup | any>;
+
     /**
      * ZCL
      */

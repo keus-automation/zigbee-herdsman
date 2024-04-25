@@ -493,19 +493,19 @@ export class ZnpAdapterManager {
         /* entry add approach */
         const testEntryIndex = 249
 
-        const ame = Structs.addressManagerEntry(Buffer.alloc(16, 0));
+        const ame = Structs.addressManagerEntry(Buffer.alloc(11, 0));
         ame.nwkAddr = nwkAddr;
         ame.extAddr = Buffer.from(ieeeAddr, 'hex');
         ame.user = Structs.AddressManagerUser.Assoc;
 
         ame.user |= Structs.AddressManagerUser.Security;
 
-        const apsKeyDataEntry = Structs.apsLinkKeyDataEntry(Buffer.alloc(16, 0));
+        const apsKeyDataEntry = Structs.apsLinkKeyDataEntry(Buffer.alloc(24, 0));
         apsKeyDataEntry.key = Buffer.from(linkKey);
         apsKeyDataEntry.rxFrmCntr = 0;
         apsKeyDataEntry.txFrmCntr = 0;
 
-        const sme = Structs.securityManagerEntry(Buffer.alloc(16, 0));
+        const sme = Structs.securityManagerEntry(Buffer.alloc(5, 0));
         sme.ami = testEntryIndex;
         sme.keyNvId = testEntryIndex;
         sme.authenticationOption = Structs.SecurityManagerAuthenticationOption.AuthenticatedCBCK;
@@ -562,5 +562,10 @@ export class ZnpAdapterManager {
         // /* write aps link key data table */
         // await this.nv.writeTable("extended", NvSystemIds.ZSTACK, NvItemsIds.ZCD_NV_EX_APS_KEY_DATA_TABLE, apsLinkKeyDataTable);
     
+    }
+
+    public async manualRestore(ieeeAddr: string, nwkAddr: number, linkKey: Buffer): Promise<void> {
+
+        await this.beginRestore();
     }
 }

@@ -724,6 +724,12 @@ class ZStackAdapter extends Adapter {
         await this.adapterManager.addOfflineDevice(ieeeAddr.split("0x")[1], nwkAddr, linkKey)
 
     }
+    
+    public async manualRestore(): Promise<void> {
+
+        await this.adapterManager.manualRestore();
+
+    }
 
     /**
      * Event handlers

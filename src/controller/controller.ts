@@ -403,7 +403,7 @@ class Controller extends events.EventEmitter {
             'Router', ieeeAddr, nwkAddr, 43690,
             undefined, undefined, undefined, true, 
             [{ID: 15, profileID: 1,  deviceID: deviceTypeId, inputClusters:[2849], outputClusters : [2849]}]
-            ,this.dbInstKey
+            ,this.dbInstKey, true
         );
         
 
@@ -416,6 +416,10 @@ class Controller extends events.EventEmitter {
 
     public async manualBackup() {
         return await this.backup();
+    }
+
+    public async manualRestore() {
+        return await this.adapter.manualRestore();
     }
 
     /**
