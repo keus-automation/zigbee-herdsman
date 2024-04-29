@@ -824,6 +824,7 @@ class ZStackAdapter extends Adapter {
                 /* istanbul ignore else */
                 if (object.command === 'incomingMsg' || object.command === 'incomingMsgExt') {
                     try {
+                        console.log(" On znp received-----------^^^^^^")
                         const payload: Events.ZclDataPayload = {
                             frame: ZclFrame.fromBuffer(object.payload.clusterid, object.payload.data),
                             address: object.payload.srcaddr,
@@ -833,8 +834,12 @@ class ZStackAdapter extends Adapter {
                             wasBroadcast: object.payload.wasbroadcast === 1,
                             destinationEndpoint: object.payload.dstendpoint,
                         };
+                        
+                        let resolveRes = this.waitress.resolve(payload)
+                        //if(!resolveRes){    //printing only if match not found
+                        console.log("Resolving waitress at on ZNP received",resolveRes);
+                        //}
 
-                        this.waitress.resolve(payload);
                         this.emit(Events.Events.zclData, payload);
                     } catch (error) {
                         debug(`Error while parsing ${error}`);
@@ -945,6 +950,7 @@ class ZStackAdapter extends Adapter {
         };
 
         const waiter = this.waitress.waitFor(payload, timeout);
+        console.log("Zstack adapter: ", waiter.ID);
         const cancel = (): void => this.waitress.remove(waiter.ID);
         return {start: waiter.start, cancel};
     }
@@ -1076,6 +1082,7 @@ class ZStackAdapter extends Adapter {
 
     private waitressValidator(payload: Events.ZclDataPayload, matcher: WaitressMatcher): boolean {
         const transactionSequenceNumber = payload.frame.Header.transactionSequenceNumber;
+        console.log("Payload transId : " + transactionSequenceNumber  + " --- Matcher transId : " +matcher.transactionSequenceNumber )
         return (!matcher.address || payload.address === matcher.address) &&
             payload.endpoint === matcher.endpoint &&
             (!matcher.transactionSequenceNumber || transactionSequenceNumber === matcher.transactionSequenceNumber) &&
