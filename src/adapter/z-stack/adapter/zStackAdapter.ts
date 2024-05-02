@@ -726,7 +726,7 @@ class ZStackAdapter extends Adapter {
     }
 
     public removeDevice(networkAddress: number, ieeeAddr: string): Promise<void> {
-        return this.queue.execute<void>(async () => {
+        return this.queue.execute<void>(async ():Promise<any> => {
             this.checkInterpanLock();
             const response = this.znp.waitFor(
                 UnpiConstants.Type.AREQ, Subsystem.ZDO, 'mgmtLeaveRsp', {srcaddr: networkAddress}
@@ -739,7 +739,22 @@ class ZStackAdapter extends Adapter {
             };
 
             await this.znp.request(Subsystem.ZDO, 'mgmtLeaveReq', payload, response.ID);
-            await response.start().promise;
+            let result = null
+            try
+            {
+                let removeDeviceRsp = await response.start().promise;
+                result = { 
+                    status : removeDeviceRsp.payload.status
+                }
+            }
+            catch
+            {
+                result = {
+                    status: null
+                }
+            }
+            debug("Remove device Result : ", result);
+            return result;
         }, networkAddress);
     }
 

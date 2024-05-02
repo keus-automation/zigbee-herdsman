@@ -678,8 +678,9 @@ class Device extends Entity {
     }
 
     public async removeFromNetwork(): Promise<void> {
-        await Entity.adapters[this._dbInstKey].removeDevice(this.networkAddress, this.ieeeAddr);
+        const result = await Entity.adapters[this._dbInstKey].removeDevice(this.networkAddress, this.ieeeAddr);
         await this.removeFromDatabase();
+        return result;
     }
 
     public async removeFromDatabase(): Promise<void> {
