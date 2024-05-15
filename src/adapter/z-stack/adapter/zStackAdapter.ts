@@ -725,7 +725,7 @@ class ZStackAdapter extends Adapter {
         }, destinationNetworkAddress);
     }
 
-    public removeDevice(networkAddress: number, ieeeAddr: string): Promise<void> {
+    public removeDevice(networkAddress: number, ieeeAddr: string): Promise<any> {
         return this.queue.execute<void>(async ():Promise<any> => {
             this.checkInterpanLock();
             const response = this.znp.waitFor(
