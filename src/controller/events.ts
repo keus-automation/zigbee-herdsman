@@ -6,6 +6,7 @@ enum Events {
     message = "message",
     adapterDisconnected = "adapterDisconnected",
     deviceJoined = "deviceJoined",
+    deviceRejoined = "deviceRejoined",
     deviceInterview = "deviceInterview",
     deviceAnnounce = "deviceAnnounce",
     deviceNetworkAddressChanged = "deviceNetworkAddressChanged",
@@ -16,6 +17,11 @@ enum Events {
 
 interface DeviceJoinedPayload {
     device: Device;
+}
+
+interface DeviceRejoinedPayload {
+    device: Device;
+    networkAddressChanged: boolean;
 }
 
 interface DeviceInterviewPayload {
@@ -33,6 +39,8 @@ interface DeviceAnnouncePayload {
 
 interface DeviceLeavePayload {
     ieeeAddr: string;
+    networkAddr?: number;
+    rejoin?: boolean;
 }
 
 interface PermitJoinChangedPayload {
@@ -148,6 +156,15 @@ const CommandsLookup: {[s: string]: MessagePayloadType} = {
     // Tuya
     'tuyaAction': 'commandTuyaAction',
     'tuyaAction2': 'commandTuyaAction2',
+
+    // Keus Specific commands
+    'appMsg': 'commandAppMsg',
+    'appMsgRsp': 'commandAppMsgRsp',
+    'appMsgNoRsp': 'commandAppMsgNoRsp',
+
+    // Sensors specific addition of commands
+    'enrollReq': 'commandEnrollReq',
+    'enrollRsp': 'commandEnrollRsp',
 };
 
 type MessagePayloadType =
@@ -175,7 +192,12 @@ type MessagePayloadType =
     'commandZosungSendIRCode01' | 'commandZosungSendIRCode02'|'commandZosungSendIRCode04' | 'zosungSendIRCode03Resp' | 
     'zosungSendIRCode05Resp' | 'commandMcuGatewayConnectionStatus' | 'commandSchneiderWiserThermostatBoost' | 
 	'transferDataResp' | 'commandAction1' | 'commandAction2' | 'commandAction3' | 'commandAction4' | 'commandAction6' |
-    'commandTuyaAction' | 'commandTuyaAction2';
+    'commandTuyaAction' | 'commandTuyaAction2'|
+    //Keus
+    'commandAppMsg' | 'commandAppMsgRsp' | 'commandAppMsgNoRsp' |
+    //sensors
+    'commandEnrollReq' | 'commandEnrollRsp'
+    ;
 
 interface MessagePayload {
     type: MessagePayloadType;
@@ -194,6 +216,6 @@ interface MessagePayload {
 
 export {
     Events, MessagePayload, MessagePayloadType, CommandsLookup, DeviceInterviewPayload, DeviceAnnouncePayload,
-    DeviceLeavePayload, DeviceJoinedPayload, PermitJoinChangedPayload, DeviceNetworkAddressChangedPayload,
+    DeviceLeavePayload, DeviceJoinedPayload, DeviceRejoinedPayload, PermitJoinChangedPayload, DeviceNetworkAddressChangedPayload,
     LastSeenChangedPayload,
 };

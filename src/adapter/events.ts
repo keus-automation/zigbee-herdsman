@@ -27,9 +27,11 @@ type NetworkAddressPayload = {
 type DeviceLeavePayload = {
     networkAddress?: number;
     ieeeAddr: string;
+    rejoin?: boolean;
 } | {
     networkAddress: number;
     ieeeAddr?: string;
+    rejoin?: boolean;
 };
 
 interface ZclPayload {

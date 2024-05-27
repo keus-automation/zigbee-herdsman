@@ -111,6 +111,13 @@ class Controller extends events.EventEmitter {
     }
 
     /**
+     * Returns adapter(only z-stack adapter supported)
+     */
+    public getZstackAdapter(): Adapter {
+        return this.adapter;
+    }
+
+    /**
      * Start the Herdsman controller
      */
     public async start(): Promise<AdapterTsType.StartResult> {
@@ -187,8 +194,8 @@ class Controller extends events.EventEmitter {
             databaseCoordinator.changeIeeeAddress(coordinator.ieeeAddr);
         }
 
-        // Set backup timer to 1 day.
-        this.backupTimer = setInterval(() => this.backup(), 86400000);
+        // Set backup timer to 1/2 day.
+        this.backupTimer = setInterval(() => this.backup(), 43200000);
 
         // Set database save timer to 1 hour.
         this.databaseSaveTimer = setInterval(() => this.databaseSave(), 3600000);
@@ -231,6 +238,22 @@ class Controller extends events.EventEmitter {
         ieeeAddr = `0x${ieeeAddr}`;
         key = Buffer.from(key.match(/.{1,2}/g).map(d => parseInt(d, 16)));
         await this.adapter.addInstallCode(ieeeAddr, key);
+    }
+
+    public async permitJoinTimed(duration: number, device?: Device): Promise<void> {
+        if (duration) 
+        {
+            // if(!this.getPermitJoin)  // not required, it will restart
+            {
+                logger.debug('Permit joining' + duration, NS);
+                await this.adapter.permitJoin(duration, !device ? null : device.networkAddress);
+            }
+        }
+        else 
+        {
+            logger.debug('Closed joining', NS);
+            await this.adapter.permitJoin(duration, !device ? null : device.networkAddress);
+        }
     }
 
     public async permitJoin(permit: boolean, device?: Device, time?: number): Promise<void> {
@@ -313,6 +336,22 @@ class Controller extends events.EventEmitter {
         await this.adapter.stop();
     }
 
+    public async forceStop(): Promise<void> {
+        this.stopping = true;
+
+        // Unregister adapter events
+        this.adapter.removeAllListeners(AdapterEvents.Events.deviceJoined);
+        this.adapter.removeAllListeners(AdapterEvents.Events.zclPayload);
+        this.adapter.removeAllListeners(AdapterEvents.Events.disconnected);
+        this.adapter.removeAllListeners(AdapterEvents.Events.deviceAnnounce);
+        this.adapter.removeAllListeners(AdapterEvents.Events.deviceLeave);
+
+        clearInterval(this.backupTimer);
+        clearInterval(this.databaseSaveTimer);
+
+        await this.adapter.stop();
+    }
+
     private databaseSave(): void {
         for (const device of Device.all()) {
             device.save(false);
@@ -365,6 +404,17 @@ class Controller extends events.EventEmitter {
         }
 
         return this.networkParametersCached;
+    }
+
+    public async forceRemoveDevice(ieeeAddr: string): Promise<void> {
+        await this.adapter.forceRemoveDevice(ieeeAddr);
+        logger.info(`Device leave '${ieeeAddr}'`, NS);
+        
+        const device = Device.byIeeeAddr(ieeeAddr);
+        if (device) {
+            logger.info(`Removing device from database '${ieeeAddr}'`, NS);
+            await device.removeFromDatabase();
+        }
     }
 
     /**
@@ -580,7 +630,7 @@ class Controller extends events.EventEmitter {
                 NS,
             );
             device.networkAddress = payload.networkAddress;
-            device.save();
+            device.save();      
         }
 
         device.updateLastSeen();

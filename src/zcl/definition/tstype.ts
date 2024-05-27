@@ -69,7 +69,11 @@ type ClusterName = (
     | 'manuSpecificSchneiderFanSwitchConfiguration' | 'sprutDevice' | 'sprutVoc' | 'sprutNoise' | 'sprutIrBlaster' | 'manuSpecificSiglisZigfred'
     | 'manuSpecificInovelli' | 'owonClearMetering' | 'zosungIRTransmit' | 'zosungIRControl' | 'manuSpecificBosch' | 'manuSpecificBosch3'
     | 'manuSpecificBosch5' | 'manuSpecificBosch7' | 'manuSpecificBosch8' | 'manuSpecificBosch9' | 'manuSpecificBosch10' | 'manuSpecificBosch11'
-    | 'manuSpecificAssaDoorLock' | 'manuSpecificDoorman' | 'manuSpecificNodOnPilotWire' | 'manuSpecificProfalux1' | 'manuSpecificAmazonWWAH'
+    | 'manuSpecificAssaDoorLock' | 'manuSpecificDoorman' | 'manuSpecificNodOnPilotWire' | 'manuSpecificProfalux1' | 'manuSpecificAmazonWWAH' |
+
+    //keus
+    'keus'
+
 );
 
 export {

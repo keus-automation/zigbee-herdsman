@@ -84,6 +84,15 @@ class ZStackAdapter extends Adapter {
         this.znp.on('received', this.onZnpRecieved.bind(this));
         this.znp.on('close', this.onZnpClose.bind(this));
     }
+    
+    pingZNPHost = async () => {
+        try {
+            await this.znp.request(Subsystem.SYS, 'ping', {capabilities: 1});
+            return true;
+        } catch (e) {
+            return false;
+        }
+    }
 
     /**
      * Adapter methods
@@ -339,6 +348,7 @@ class ZStackAdapter extends Adapter {
                 profileID: descriptor.payload.profileid,
                 endpointID: descriptor.payload.endpoint,
                 deviceID: descriptor.payload.deviceid,
+                deviceVersion: descriptor.payload.deviceversion,
                 inputClusters: descriptor.payload.inclusterlist,
                 outputClusters: descriptor.payload.outclusterlist,
             };
@@ -735,6 +745,14 @@ class ZStackAdapter extends Adapter {
             await this.znp.request(Subsystem.ZDO, 'mgmtLeaveReq', payload, response.ID);
             await response.start().promise;
         }, networkAddress);
+    }
+
+    public async forceRemoveDevice(ieeeAddr: string): Promise<void> {
+        const resultRemoveLinkKey = await this.znp.request(Subsystem.ZDO, 'removeLinkKey', { ieeeaddr: ieeeAddr });
+        // const resultSecDeviceRemove = await this.znp.request(Subsystem.ZDO, 'secDeviceRemove', { extaddr: ieeeAddr });
+
+        logger.debug('Removed Link Key ' + resultRemoveLinkKey, NS);
+        // debug.log('Sec Device Remove', resultSecDeviceRemove);
     }
 
     /**

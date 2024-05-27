@@ -9,7 +9,7 @@ import {logger} from '../../utils/logger';
 
 const NS = 'zh:controller:group';
 
-interface Options {
+export interface Options {
     manufacturerCode?: number;
     direction?: Zcl.Direction;
     srcEndpoint?: number;

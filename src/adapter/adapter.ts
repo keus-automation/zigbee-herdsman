@@ -9,6 +9,10 @@ import {BroadcastAddress} from '../zspec/enums';
 
 const NS = 'zh:adapter';
 
+interface Adapter {
+    pingZNPHost?(): Promise<boolean>;
+}
+
 abstract class Adapter extends events.EventEmitter {
     public readonly greenPowerGroup = 0x0b84;
     protected networkOptions: TsType.NetworkOptions;
