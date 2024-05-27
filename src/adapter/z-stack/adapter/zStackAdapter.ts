@@ -713,10 +713,12 @@ class ZStackAdapter extends Adapter {
 
     public async forceRemoveDevice(ieeeAddr: string): Promise<void> {
         const resultRemoveLinkKey = await this.znp.request(Subsystem.ZDO, 'removeLinkKey', { ieeeaddr: ieeeAddr });
-        // const resultSecDeviceRemove = await this.znp.request(Subsystem.ZDO, 'secDeviceRemove', { extaddr: ieeeAddr });
+        const resultAssocRemove = await this.znp.request(Subsystem.ZDO, 'secDeviceRemove', { extaddr: ieeeAddr });
+        const resultSecDeviceRemove = await this.znp.request(Subsystem.ZDO, 'assocRemove', { ieeeadr: ieeeAddr });
 
-        debug('Removed Link Key', resultRemoveLinkKey);
-        // debug('Sec Device Remove', resultSecDeviceRemove);
+        debug('Removed device link key ', resultRemoveLinkKey);
+        debug('Removed device association ', resultAssocRemove);
+        debug('Removed device security info ', resultSecDeviceRemove);
     }
 
     public async addOfflineDevice(ieeeAddr: string, nwkAddr: number, linkKey: Buffer): Promise<void> {
