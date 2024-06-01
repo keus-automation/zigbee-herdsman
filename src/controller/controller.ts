@@ -389,6 +389,10 @@ class Controller extends events.EventEmitter {
         }
     }
 
+    public async checkHostHealth(): Promise<boolean> {
+        return this.adapter.pingZNPHost();
+    }
+
     public async reset(type: 'soft' | 'hard'): Promise<void> {
         await this.adapter.reset(type);
     }

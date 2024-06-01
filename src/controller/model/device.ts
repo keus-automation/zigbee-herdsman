@@ -381,7 +381,7 @@ class Device extends Entity {
             entry.manufName, entry.powerSource, entry.modelId, entry.appVersion,
             entry.stackVersion, entry.zclVersion, entry.hwVersion, entry.dateCode, entry.swBuildId,
             entry.interviewCompleted, meta, entry.lastSeen || null, entry.checkinInterval,
-            pendingRequestTimeout
+            pendingRequestTimeout, entry.keusDevice || true
         );
     }
 
@@ -398,7 +398,7 @@ class Device extends Entity {
             modelId: this.modelID, epList, endpoints, appVersion: this.applicationVersion,
             stackVersion: this.stackVersion, hwVersion: this.hardwareVersion, dateCode: this.dateCode,
             swBuildId: this.softwareBuildID, zclVersion: this.zclVersion, interviewCompleted: this.interviewCompleted,
-            meta: this.meta, lastSeen: this.lastSeen, checkinInterval: this.checkinInterval
+            meta: this.meta, lastSeen: this.lastSeen, checkinInterval: this.checkinInterval, keusDevice: this._keusDevice
         };
     }
 
@@ -612,7 +612,7 @@ class Device extends Entity {
         // this is keus specific manufacturer id, interview will be slighty modified for keus based devices
         if (keusEndPoint) {
             try {
-                let simpleDescriptor = await Entity.adapters[this._dbInstKey].simpleDescriptor(this.networkAddress, keusEndPoint);
+                let simpleDescriptor = await Entity.adapter.simpleDescriptor(this.networkAddress, keusEndPoint);
                 let endpoint = Endpoint.create(
                     keusEndPoint,
                     simpleDescriptor.profileID,
@@ -620,30 +620,29 @@ class Device extends Entity {
                     simpleDescriptor.inputClusters,
                     simpleDescriptor.outputClusters,
                     this.networkAddress,
-                    this.ieeeAddr,
-                    this._dbInstKey
+                    this.ieeeAddr
                 );
 
                 endpoint.deviceVersion = simpleDescriptor.deviceVersion;
 
                 this._endpoints.push(endpoint);
                 this._keusDevice = true;
-                debug.log(`Keus Interview - got simple descriptor for endpoint '${endpoint.ID}' device '${this.ieeeAddr}'`);
+                logger.debug(NS,`Keus Interview - got simple descriptor for endpoint '${endpoint.ID}' device '${this.ieeeAddr}'`);
 
 
                 if (keusEndPoint === 1) {
-                    debug.log(`Interview - IAS - enrolling '${this.ieeeAddr}' endpoint '${endpoint.ID}'`);
+                    logger.debug(NS,`Interview - IAS - enrolling '${this.ieeeAddr}' endpoint '${endpoint.ID}'`);
 
                     const stateBefore = await endpoint.read('ssIasZone', ['iasCieAddr', 'zoneState']);
-                    debug.log(`Interview - IAS - before enrolling state: '${JSON.stringify(stateBefore)}'`);
+                    logger.debug(NS,`Interview - IAS - before enrolling state: '${JSON.stringify(stateBefore)}'`);
 
                     // Do not enroll when device has already been enrolled
-                    const coordinator = Device.byType(this._dbInstKey, 'Coordinator')[0];
+                    const coordinator = Device.byType('Coordinator')[0];
                     if (stateBefore.zoneState !== 1 || stateBefore.iasCieAddr !== coordinator.ieeeAddr) {
-                        debug.log(`Interview - IAS - not enrolled, enrolling`);
+                        logger.debug(NS,`Interview - IAS - not enrolled, enrolling`);
 
                         await endpoint.write('ssIasZone', {'iasCieAddr': coordinator.ieeeAddr});
-                        debug.log(`Interview - IAS - wrote iasCieAddr`);
+                        logger.debug(NS,`Interview - IAS - wrote iasCieAddr`);
 
                         // There are 2 enrollment procedures:
                         // - Auto enroll: coordinator has to send enrollResponse without receiving an enroll request
@@ -652,7 +651,7 @@ class Device extends Entity {
                         //                  this case in hanled in onZclData().
                         // https://github.com/Koenkk/zigbee2mqtt/issues/4569#issuecomment-706075676
                         await Wait(500);
-                        debug.log(`IAS - '${this.ieeeAddr}' sending enroll response (auto enroll)`);
+                        logger.debug(NS,`IAS - '${this.ieeeAddr}' sending enroll response (auto enroll)`);
                         const payload = {enrollrspcode: 0, zoneid: 23};
                         await endpoint.command('ssIasZone', 'enrollRsp', payload, {disableDefaultResponse: true});
 
@@ -660,7 +659,7 @@ class Device extends Entity {
                         for (let attempt = 0; attempt < 20; attempt++) {
                             await Wait(500);
                             const stateAfter = await endpoint.read('ssIasZone', ['iasCieAddr', 'zoneState']);
-                            debug.log(`Interview - IAS - after enrolling state (${attempt}): '${JSON.stringify(stateAfter)}'`);
+                            logger.debug(NS,`Interview - IAS - after enrolling state (${attempt}): '${JSON.stringify(stateAfter)}'`);
                             if (stateAfter.zoneState === 1) {
                                 enrolled = true;
                                 break;
@@ -668,14 +667,14 @@ class Device extends Entity {
                         }
 
                         if (enrolled) {
-                            debug.log(`Interview - IAS successfully enrolled '${this.ieeeAddr}' endpoint '${endpoint.ID}'`);
+                            logger.debug(NS,`Interview - IAS successfully enrolled '${this.ieeeAddr}' endpoint '${endpoint.ID}'`);
                         } else {
                             throw new Error(
                                 `Interview failed because of failed IAS enroll (zoneState didn't change ('${this.ieeeAddr}')`
                             );
                         }
                     } else {
-                        debug.log(`Interview - IAS - already enrolled, skipping enroll`);
+                        logger.debug(NS,`Interview - IAS - already enrolled, skipping enroll`);
                     }
                 }
 
@@ -683,7 +682,7 @@ class Device extends Entity {
 
                 return;
             } catch (error) {
-                debug.log(`Error with Keus device pairing, Simple Descriptor Request Failed`);
+                logger.debug(NS,`Error with Keus device pairing, Simple Descriptor Request Failed`);
 
                 throw new Error('Keus Interview - Simple Descriptor Failed Or IAS Failed');
             }
