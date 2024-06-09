@@ -328,7 +328,7 @@ class Device extends Entity {
         powerSource: string, modelID: string, interviewCompleted: boolean,
         endpoints: {
             ID: number; profileID: number; deviceID: number; inputClusters: number[]; outputClusters: number[];
-        }[], dbInstKey: string
+        }[], dbInstKey: string, keusDevice:boolean=false
     ): Device {
         Device.loadFromDatabaseIfNecessary(dbInstKey);
         if (Device.devices[dbInstKey][ieeeAddr]) {
@@ -348,6 +348,8 @@ class Device extends Entity {
             powerSource, modelID, undefined, undefined, undefined, undefined, undefined, undefined,
             interviewCompleted, {}, null, dbInstKey
         );
+    
+        device.keusDevice = keusDevice;
 
         Entity.databases[dbInstKey].insert(device.toDatabaseEntry());
         Device.devices[dbInstKey][device.ieeeAddr] = device;
