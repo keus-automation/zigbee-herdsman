@@ -183,6 +183,24 @@ export class ZnpAdapterManager {
 
                 /* Configuration matches adapter state - regular startup */
                 this.debug.strategy("(stage-2) adapter state matches configuration");
+
+                //write update nib
+                //check nib params
+                if( nib.BroadcastDeliveryTime != 60 || 
+                    nib.MaxBroadcastRetries != 1 ||
+                    nib.PassiveAckTimeout != 5 )
+                {
+                    this.debug.strategy("(stage-2a) Keus NIB network settings did not match");
+                    nib.BroadcastDeliveryTime = 60;
+                    nib.MaxBroadcastRetries = 1;
+                    nib.PassiveAckTimeout = 5;
+                    /* write update nib */
+                    await this.nv.writeItem(NvItemsIds.NIB, nib);
+                    await Wait(5000);
+                    process.exit(1);
+                }
+
+
                 return "startup";
             } else {
                 /* Configuration does not match adapter state */
