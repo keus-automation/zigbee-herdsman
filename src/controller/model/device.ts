@@ -55,6 +55,7 @@ class Device extends Entity {
     private _linkquality?: number;
     private _skipDefaultResponse: boolean;
     private _dbInstKey: string;
+    private _isDeviceVirtual?: boolean;
 
     // Getters/setters
     get ieeeAddr(): string {return this._ieeeAddr;}
@@ -95,6 +96,8 @@ class Device extends Entity {
     set zclVersion(zclVersion: number) {this._zclVersion = zclVersion;}
     get keusDevice(): boolean {return this._keusDevice;}
     set keusDevice(keusDevice) {this._keusDevice = keusDevice};
+    get isDeviceVirtual(): boolean {return this._isDeviceVirtual;}
+    set isDeviceVirtual(isDeviceVirtual) {this._isDeviceVirtual = isDeviceVirtual};
     get linkquality(): number {return this._linkquality;}
     set linkquality(linkquality: number) {this._linkquality = linkquality;}
     get skipDefaultResponse(): boolean {return this._skipDefaultResponse;}
@@ -133,7 +136,7 @@ class Device extends Entity {
         manufacturerID: number, endpoints: Endpoint[], manufacturerName: string,
         powerSource: string, modelID: string, applicationVersion: number, stackVersion: number, zclVersion: number,
         hardwareVersion: number, dateCode: string, softwareBuildID: string, interviewCompleted: boolean, meta: KeyValue,
-        lastSeen: number, dbInstKey: string, keusDevice?: boolean
+        lastSeen: number, dbInstKey: string, keusDevice?: boolean, isDeviceVirtual?: boolean
     ) {
         super();
         this.ID = ID;
@@ -158,6 +161,7 @@ class Device extends Entity {
         this._lastSeen = lastSeen;
         this._dbInstKey = dbInstKey;
         this._keusDevice = keusDevice;
+        this._isDeviceVirtual=isDeviceVirtual;
     }
 
     public async createEndpoint(ID: number): Promise<Endpoint> {
@@ -328,7 +332,7 @@ class Device extends Entity {
         powerSource: string, modelID: string, interviewCompleted: boolean,
         endpoints: {
             ID: number; profileID: number; deviceID: number; inputClusters: number[]; outputClusters: number[];
-        }[], dbInstKey: string, keusDevice:boolean=false
+        }[], dbInstKey: string, keusDevice:boolean=false , IsDeviceVirtual:boolean=false
     ): Device {
         Device.loadFromDatabaseIfNecessary(dbInstKey);
         if (Device.devices[dbInstKey][ieeeAddr]) {
@@ -350,7 +354,7 @@ class Device extends Entity {
         );
     
         device.keusDevice = keusDevice;
-
+        device.isDeviceVirtual = IsDeviceVirtual;
         Entity.databases[dbInstKey].insert(device.toDatabaseEntry());
         Device.devices[dbInstKey][device.ieeeAddr] = device;
         return device;

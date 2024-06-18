@@ -395,23 +395,28 @@ class Controller extends events.EventEmitter {
         }
     }
 
-    public async addOfflineDevice(ieeeAddr: string, nwkAddr: number, linkKey: Buffer, deviceTypeId: number ): Promise<void> {
-        await this.adapter.addOfflineDevice(ieeeAddr, nwkAddr, linkKey);
+    public async addVirtualDevice(ieeeAddr: string, nwkAddr: number, linkKey: Buffer, deviceTypeId: number ): Promise<{Status : string, deviceInfo :any , message : string}> {
+        await this.adapter.addVirtualDevice(ieeeAddr, nwkAddr, linkKey);
         debug.log(`Device added offline '${ieeeAddr}'`);
-
+        const IsDeviceVirtual = true
         const device = Device.create(
             'Router', ieeeAddr, nwkAddr, 43690,
             undefined, undefined, undefined, true, 
             [{ID: 15, profileID: 1,  deviceID: deviceTypeId, inputClusters:[2849], outputClusters : [2849]}]
-            ,this.dbInstKey, true
+            ,this.dbInstKey, true, IsDeviceVirtual
         );
         
 
         debug.log(`Added device to db '${ieeeAddr}'`);
-        console.log('Offline addition of ' + ieeeAddr + " successfull ")
 
         const deviceInterviewPayload: Events.DeviceInterviewPayload = { status: 'successful', device };
         this.emit(Events.Events.deviceInterview, deviceInterviewPayload);
+        const msg = `Virtual Device with DeviceId ${ieeeAddr} added successfully`
+        return {
+            Status: 'success',
+            deviceInfo : device,
+            message: msg
+        }
     }
 
     public async manualBackup() {

@@ -486,7 +486,7 @@ export class ZnpAdapterManager {
         await this.nv.writeItem(this.options.version === ZnpVersion.zStack12 ? NvItemsIds.ZNP_HAS_CONFIGURED_ZSTACK1 : NvItemsIds.ZNP_HAS_CONFIGURED_ZSTACK3, Buffer.from([0x55]));
     }
 
-    public async addOfflineDevice(ieeeAddr: string, nwkAddr: number, linkKey: Buffer): Promise<void> {
+    public async addVirtualDevice(ieeeAddr: string, nwkAddr: number, linkKey: Buffer): Promise<void> {
 
         
 
