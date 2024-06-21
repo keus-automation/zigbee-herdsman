@@ -397,7 +397,7 @@ class Controller extends events.EventEmitter {
 
     public async addVirtualDevice(ieeeAddr: string, nwkAddr: number, linkKey: Buffer, deviceTypeId: number ): Promise<{Status : string, deviceInfo :any , message : string}> {
         await this.adapter.addVirtualDevice(ieeeAddr, nwkAddr, linkKey);
-        debug.log(`Device added offline '${ieeeAddr}'`);
+        debug.log(`Device Added Virtually '${ieeeAddr}'`);
         const IsDeviceVirtual = true
         const device = Device.create(
             'Router', ieeeAddr, nwkAddr, 43690,
@@ -407,7 +407,7 @@ class Controller extends events.EventEmitter {
         );
         
 
-        debug.log(`Added device to db '${ieeeAddr}'`);
+        debug.log(`Added device to db '${ieeeAddr}' with deviceInfo : ${device}`);
 
         const deviceInterviewPayload: Events.DeviceInterviewPayload = { status: 'successful', device };
         this.emit(Events.Events.deviceInterview, deviceInterviewPayload);
