@@ -56,10 +56,7 @@ class Waitress<TPayload, TMatcher> {
         const promise: Promise<TPayload> = new Promise((resolve, reject): void => {
             const object: Waiter<TPayload, TMatcher> = {matcher, resolve, reject, timedout: false, resolved: false, ID};
             this.waiters.set(ID, object);
-            console.log("Created new promise with waiter ID : ", ID);
-            console.log("printing current object ----")
             util.inspect(this, false, null, true /* enable colors */);
-            console.log("Current waiter list : ", this.waiters.entries())
         });
 
         const start = (): {promise: Promise<TPayload>; ID: number} => {
@@ -80,11 +77,9 @@ class Waitress<TPayload, TMatcher> {
 
     private forEachMatching(payload: TPayload, action: (waiter: Waiter<TPayload, TMatcher>) => void): boolean {
         let foundMatching = false;
-        console.log("\n ---START CHECK ----\n");
         
 
         for (const [index, waiter] of this.waiters.entries()) {
-            console.log("Checking for : " + waiter.ID);
             
             // util.inspect(waiter, false, null, true /* enable colors */))
             if (waiter.timedout) {
@@ -97,7 +92,6 @@ class Waitress<TPayload, TMatcher> {
                 foundMatching = true;
             }
         }
-        console.log("----------------------------- END CHECK ---------------------------------");
         return foundMatching;
     }
 }

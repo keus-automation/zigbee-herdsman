@@ -725,8 +725,8 @@ class ZStackAdapter extends Adapter {
         }, destinationNetworkAddress);
     }
 
-    public removeDevice(networkAddress: number, ieeeAddr: string): Promise<any> {
-        return this.queue.execute<void>(async ():Promise<any> => {
+    public removeDevice(networkAddress: number, ieeeAddr: string): Promise<void> {
+        return this.queue.execute<void>(async () => {
             this.checkInterpanLock();
             const response = this.znp.waitFor(
                 UnpiConstants.Type.AREQ, Subsystem.ZDO, 'mgmtLeaveRsp', {srcaddr: networkAddress}
@@ -739,22 +739,7 @@ class ZStackAdapter extends Adapter {
             };
 
             await this.znp.request(Subsystem.ZDO, 'mgmtLeaveReq', payload, response.ID);
-            let result = null
-            try
-            {
-                let removeDeviceRsp = await response.start().promise;
-                result = { 
-                    status : removeDeviceRsp.payload.status
-                }
-            }
-            catch
-            {
-                result = {
-                    status: null
-                }
-            }
-            debug("Remove device Result : ", result);
-            return result;
+            await response.start().promise;
         }, networkAddress);
     }
 
@@ -839,7 +824,6 @@ class ZStackAdapter extends Adapter {
                 /* istanbul ignore else */
                 if (object.command === 'incomingMsg' || object.command === 'incomingMsgExt') {
                     try {
-                        console.log(" On znp received-----------^^^^^^")
                         const payload: Events.ZclDataPayload = {
                             frame: ZclFrame.fromBuffer(object.payload.clusterid, object.payload.data),
                             address: object.payload.srcaddr,
@@ -852,7 +836,6 @@ class ZStackAdapter extends Adapter {
                         
                         let resolveRes = this.waitress.resolve(payload)
                         //if(!resolveRes){    //printing only if match not found
-                        console.log("Resolving waitress at on ZNP received",resolveRes);
                         //}
 
                         this.emit(Events.Events.zclData, payload);
