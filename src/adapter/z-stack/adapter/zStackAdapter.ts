@@ -645,8 +645,8 @@ class ZStackAdapter extends Adapter {
         destinationNetworkAddress: number, sourceIeeeAddress: string, sourceEndpoint: number,
         clusterID: number, destinationAddressOrGroup: string | number, type: 'endpoint' | 'group',
         destinationEndpoint?: number
-    ): Promise<void> {
-        return this.queue.execute<void>(async () => {
+    ): Promise<any> {
+        return this.queue.execute<void>(async ():Promise<any> => {
             this.checkInterpanLock();
             const responsePayload = {srcaddr: destinationNetworkAddress};
             const response = this.znp.waitFor(Type.AREQ, Subsystem.ZDO, 'bindRsp', responsePayload);
@@ -662,7 +662,23 @@ class ZStackAdapter extends Adapter {
             };
 
             await this.znp.request(Subsystem.ZDO, 'bindReq', payload, response.ID);
-            await response.start().promise;
+            
+            let result = null
+            try {
+                let bindRsp = await response.start().promise;
+
+                result = {
+                    status: bindRsp.payload.status
+                }
+            }
+            catch {
+                result = {
+                    status: null
+                }
+            }
+            debug("Bind Result : ", result);
+            return result;
+            
         }, destinationNetworkAddress);
     }
 
@@ -670,8 +686,8 @@ class ZStackAdapter extends Adapter {
         destinationNetworkAddress: number, sourceIeeeAddress: string, sourceEndpoint: number,
         clusterID: number, destinationAddressOrGroup: string | number, type: 'endpoint' | 'group',
         destinationEndpoint: number
-    ): Promise<void> {
-        return this.queue.execute<void>(async () => {
+    ): Promise<any> {
+        return this.queue.execute<void>(async ():Promise<any> => {
             this.checkInterpanLock();
             const response = this.znp.waitFor(
                 Type.AREQ, Subsystem.ZDO, 'unbindRsp', {srcaddr: destinationNetworkAddress}
@@ -689,7 +705,23 @@ class ZStackAdapter extends Adapter {
             };
 
             await this.znp.request(Subsystem.ZDO, 'unbindReq', payload, response.ID);
-            await response.start().promise;
+            
+            let result = null
+            try {
+                let bindRsp = await response.start().promise;
+
+                result = {
+                    status: bindRsp.payload.status
+                }
+            }
+            catch {
+                result = {
+                    status: null
+                }
+            }
+            debug("Unbind Result : ", result);
+            return result;
+
         }, destinationNetworkAddress);
     }
 
@@ -815,8 +847,11 @@ class ZStackAdapter extends Adapter {
                             wasBroadcast: object.payload.wasbroadcast === 1,
                             destinationEndpoint: object.payload.dstendpoint,
                         };
+                        
+                        let resolveRes = this.waitress.resolve(payload)
+                        //if(!resolveRes){    //printing only if match not found
+                        //}
 
-                        this.waitress.resolve(payload);
                         this.emit(Events.Events.zclData, payload);
                     } catch (error) {
                         debug(`Error while parsing ${error}`);
@@ -927,6 +962,7 @@ class ZStackAdapter extends Adapter {
         };
 
         const waiter = this.waitress.waitFor(payload, timeout);
+        console.log("Zstack adapter: ", waiter.ID);
         const cancel = (): void => this.waitress.remove(waiter.ID);
         return {start: waiter.start, cancel};
     }
@@ -1058,6 +1094,7 @@ class ZStackAdapter extends Adapter {
 
     private waitressValidator(payload: Events.ZclDataPayload, matcher: WaitressMatcher): boolean {
         const transactionSequenceNumber = payload.frame.Header.transactionSequenceNumber;
+        console.log("Payload transId : " + transactionSequenceNumber  + " --- Matcher transId : " +matcher.transactionSequenceNumber )
         return (!matcher.address || payload.address === matcher.address) &&
             payload.endpoint === matcher.endpoint &&
             (!matcher.transactionSequenceNumber || transactionSequenceNumber === matcher.transactionSequenceNumber) &&

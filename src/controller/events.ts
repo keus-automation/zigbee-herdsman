@@ -87,6 +87,11 @@ const CommandsLookup: {[s: string]: MessagePayloadType} = {
     'setDataResponse': 'commandSetDataResponse',
     'getWeeklyScheduleRsp': 'commandGetWeeklyScheduleRsp',
     'queryNextImageRequest': 'commandQueryNextImageRequest',
+    'unlockDoorRsp' : 'unlockDoorRsp',
+    'lockDoorRsp' : 'lockDoorRsp',
+    'setPinCodeRsp' : 'setPinCodeRsp',
+    'clearPinCodeRsp' : 'clearPinCodeRsp',
+    'alarm' : 'alarm',
 
     // Keus Specific commands
     'appMsg': 'commandAppMsg',
@@ -132,7 +137,7 @@ const CommandsLookup: {[s: string]: MessagePayloadType} = {
 
 type MessagePayloadType =
     // Global
-    'attributeReport' | 'readResponse' | 'raw' | 'read' | 'write' |
+    'attributeReport' | 'readResponse' | 'raw' | 'read' | 'write' | 
     // Specific
     'commandOn' | 'commandOffWithEffect' | 'commandStep' | 'commandStop' | 'commandHueNotification' |
     'commandOff' | 'commandStepColorTemp' | 'commandMoveWithOnOff' |
@@ -151,7 +156,9 @@ type MessagePayloadType =
     'commandAtHome' | 'commandGoOut' | 'commandCinema' | 'commandRepast' | 'commandSleep' |
     'commandStudyKeyRsp' | 'commandCreateIdRsp' | 'commandGetIdAndKeyCodeListRsp' | 'commandSetTimeRequest' |
     'commandGetPanelStatus' | 'commandCheckIn' | 'commandActiveStatusReport' | 'commandMoveToHue' | 'commandStore'|
-    'commandWiserSmartSetSetpoint' | 'commandWiserSmartCalibrateValve' | 'commandDanfossSetpointCommand';
+    'commandWiserSmartSetSetpoint' | 'commandWiserSmartCalibrateValve' | 'commandDanfossSetpointCommand'| 
+    'unlockDoorRsp' | 'lockDoorRsp' | 'clearPinCodeRsp' | 'setPinCodeRsp' |
+    'alarm';
 
 interface MessagePayload {
     type: MessagePayloadType;
