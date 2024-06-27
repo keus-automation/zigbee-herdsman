@@ -349,6 +349,13 @@ class Controller extends events.EventEmitter {
         }
     }
 
+    public async confirmVirtualDevice(ieeeAddr :  string) : Promise<void> {
+        console.log(`Device ${ieeeAddr} updated in Zigbee database`);
+        let deviceInfo = Device.byIeeeAddr(this.dbInstKey, ieeeAddr);
+        deviceInfo.isDeviceVirtual = false;
+        deviceInfo.save();
+    }
+
     private async backup(): Promise<void> {
         if (this.options.backupPath && await this.adapter.supportsBackup()) {
             debug.log('Creating coordinator backup');
@@ -407,7 +414,7 @@ class Controller extends events.EventEmitter {
         );
         
 
-        debug.log(`Added device to db '${ieeeAddr}' with deviceInfo : ${device}`);
+        debug.log(`Added device to db '${ieeeAddr}' with deviceInfo : ${JSON.stringify(device)}`);
 
         const deviceInterviewPayload: Events.DeviceInterviewPayload = { status: 'successful', device };
         this.emit(Events.Events.deviceInterview, deviceInterviewPayload);
