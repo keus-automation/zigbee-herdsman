@@ -632,7 +632,7 @@ class Controller extends events.EventEmitter {
                 const event: Events.DeviceInterviewPayload = { status: 'failed', device };
                 this.emit(Events.Events.deviceInterview, event);
             }
-        } else {
+        } else if(!device.interviewing) {
             debug.log(
                 `Not interviewing '${payload.ieeeAddr}', completed '${device.interviewCompleted}', ` +
                 `in progress '${device.interviewing}'`
