@@ -197,7 +197,6 @@ export class ZnpAdapterManager {
                     /* write update nib */
                     await this.nv.writeItem(NvItemsIds.NIB, nib);
                     await Wait(5000);
-                    process.exit(1);
                 }
 
 
