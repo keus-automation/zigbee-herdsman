@@ -187,12 +187,12 @@ export class ZnpAdapterManager {
                 //write update nib
                 //check nib params
                 if( nib.BroadcastDeliveryTime != 60 || 
-                    nib.MaxBroadcastRetries != 1 ||
+                    nib.MaxBroadcastRetries != 3 ||
                     nib.PassiveAckTimeout != 5 )
                 {
                     this.debug.strategy("(stage-2a) Keus NIB network settings did not match");
                     nib.BroadcastDeliveryTime = 60;
-                    nib.MaxBroadcastRetries = 1;
+                    nib.MaxBroadcastRetries = 3;
                     nib.PassiveAckTimeout = 5;
                     /* write update nib */
                     await this.nv.writeItem(NvItemsIds.NIB, nib);
