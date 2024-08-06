@@ -839,7 +839,6 @@ class ZStackAdapter extends Adapter {
                 /* istanbul ignore else */
                 if (object.command === 'incomingMsg' || object.command === 'incomingMsgExt') {
                     try {
-                        console.log(" On znp received-----------^^^^^^")
                         const payload: Events.ZclDataPayload = {
                             frame: ZclFrame.fromBuffer(object.payload.clusterid, object.payload.data),
                             address: object.payload.srcaddr,
@@ -852,7 +851,6 @@ class ZStackAdapter extends Adapter {
                         
                         let resolveRes = this.waitress.resolve(payload)
                         //if(!resolveRes){    //printing only if match not found
-                        console.log("Resolving waitress at on ZNP received",resolveRes);
                         //}
 
                         this.emit(Events.Events.zclData, payload);
