@@ -29,7 +29,8 @@ interface RoutingTable {
 
 const KEUS_ENDPOINTSMAP: {[key:number]: number} = {
     0xAAAA: 15,
-    4648: 1
+    4648: 1,
+    4125: 1
 }
 
 class Device extends Entity {
@@ -489,7 +490,8 @@ class Device extends Entity {
                 debug.log(`Keus Interview - got simple descriptor for endpoint '${endpoint.ID}' device '${this.ieeeAddr}'`);
 
 
-                if (keusEndPoint === 1) {
+                if (keusEndPoint === 1 && this._manufacturerID == 4648)   //IAS setup for door sensor
+                {
                     debug.log(`Interview - IAS - enrolling '${this.ieeeAddr}' endpoint '${endpoint.ID}'`);
 
                     const stateBefore = await endpoint.read('ssIasZone', ['iasCieAddr', 'zoneState']);
@@ -678,8 +680,12 @@ class Device extends Entity {
     }
 
     public async removeFromNetwork(): Promise<void> {
-        await Entity.adapters[this._dbInstKey].removeDevice(this.networkAddress, this.ieeeAddr);
-        await this.removeFromDatabase();
+        const result = await Entity.adapters[this._dbInstKey].removeDevice(this.networkAddress, this.ieeeAddr);
+        if(result.status == 0)
+        {
+            await this.removeFromDatabase();
+        }
+        return result;
     }
 
     public async removeFromDatabase(): Promise<void> {

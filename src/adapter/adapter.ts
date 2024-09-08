@@ -157,7 +157,7 @@ abstract class Adapter extends events.EventEmitter {
         destinationEndpoint: number
     ): Promise<void>;
 
-    public abstract removeDevice(networkAddress: number, ieeeAddr: string): Promise<void>;
+    public abstract removeDevice(networkAddress: number, ieeeAddr: string): Promise<any>;
 
     public abstract forceRemoveDevice(ieeeAddr: string): Promise<void>;
 
