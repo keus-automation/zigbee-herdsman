@@ -359,6 +359,10 @@ class Controller extends events.EventEmitter {
         }
     }
 
+    public async hasCoordinatorStarted(): Promise<boolean> {
+        return this.adapter.hasCoordinatorStarted();
+    }
+
     public async checkHostHealth(): Promise<boolean> {
         return this.adapter.pingZNPHost();
     }

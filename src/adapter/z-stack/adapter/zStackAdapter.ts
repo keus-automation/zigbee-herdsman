@@ -16,6 +16,7 @@ import debounce from 'debounce';
 import {LoggerStub} from "../../../controller/logger-stub";
 import {ZnpAdapterManager} from "./manager";
 import * as Models from "../../../models";
+import { DevStates } from '../constants/common';
 
 const debug = Debug("zigbee-herdsman:adapter:zStack:adapter");
 const Subsystem = UnpiConstants.Subsystem;
@@ -88,10 +89,24 @@ class ZStackAdapter extends Adapter {
         this.znp.on('close', this.onZnpClose.bind(this));
     }
 
-    pingZNPHost = async () => {
+    public async pingZNPHost(): Promise<boolean> {
         try {
             await this.znp.request(Subsystem.SYS, 'ping', {capabilities: 1});
             return true;
+        } catch (e) {
+            return false;
+        }
+    }
+
+    public async hasCoordinatorStarted(): Promise<boolean> {
+        try {
+            const deviceInfo = await this.znp.request(Subsystem.UTIL, 'getDeviceInfo', {});
+
+            if (deviceInfo.payload.devicestate === DevStates.ZB_COORD) {
+                return true;
+            } else {
+                return false;
+            }
         } catch (e) {
             return false;
         }
@@ -774,11 +789,11 @@ class ZStackAdapter extends Adapter {
 
     }
     
-    public async manualRestore(): Promise<void> {
+    // public async manualRestore(): Promise<void> {
 
-        await this.adapterManager.manualRestore();
+    //     await this.adapterManager.manualRestore();
 
-    }
+    // }
 
     /**
      * Event handlers

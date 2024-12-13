@@ -8,10 +8,6 @@ import * as Models from "../models";
 
 const debug = Debug("zigbee-herdsman:adapter");
 
-interface Adapter {
-    pingZNPHost?(): Promise<boolean>;
-}
-
 abstract class Adapter extends events.EventEmitter {
     public readonly greenPowerGroup = 0x0b84;
     protected networkOptions: TsType.NetworkOptions;
@@ -30,6 +26,14 @@ abstract class Adapter extends events.EventEmitter {
         this.serialPortOptions = serialPortOptions;
         this.backupPath = backupPath;
         this.logger = logger;
+    }
+
+    public async pingZNPHost(): Promise<boolean> {
+        return true;
+    }
+
+    public async hasCoordinatorStarted?(): Promise<boolean> {
+        return true;
     }
 
     /**
@@ -161,9 +165,7 @@ abstract class Adapter extends events.EventEmitter {
 
     public abstract forceRemoveDevice(ieeeAddr: string): Promise<void>;
 
-    public abstract addOfflineDevice(ieeeAddr: string, nwkAddr: number, linkKey: Buffer): Promise<void>;
-
-    public abstract manualRestore(): Promise<Models.Backup | any>;
+    public async addOfflineDevice(ieeeAddr: string, nwkAddr: number, linkKey: Buffer): Promise<void> {}
 
     /**
      * ZCL
