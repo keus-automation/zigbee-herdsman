@@ -153,6 +153,8 @@ export class ZnpAdapterManager {
             Utils.compareNetworkOptions(this.nwkOptions, backup.networkOptions, true)
         );
 
+        const enableCustomKeusNetworkSettings = true;
+
         /* Determine startup strategy */
         if (!hasConfigured || !hasConfigured.isConfigured() || !nib) {
             /* Adapter is not configured or not commissioned */
@@ -186,9 +188,13 @@ export class ZnpAdapterManager {
 
                 //write update nib
                 //check nib params
-                if( nib.BroadcastDeliveryTime != 60 || 
-                    nib.MaxBroadcastRetries != 3 ||
-                    nib.PassiveAckTimeout != 5 )
+                if( enableCustomKeusNetworkSettings && 
+                    (
+                        nib.BroadcastDeliveryTime != 60 || 
+                        nib.MaxBroadcastRetries != 3 ||
+                        nib.PassiveAckTimeout != 5 
+                    )
+                )
                 {
                     this.debug.strategy("(stage-2a) Keus NIB network settings did not match");
                     nib.BroadcastDeliveryTime = 60;
