@@ -620,7 +620,7 @@ export class ZnpAdapterManager {
 /* table update approach end */
     }
 
-    public async manualRestore(ieeeAddr: string, nwkAddr: number, linkKey: Buffer): Promise<void> {
+    public async manualRestore(): Promise<void> {
 
         await this.beginRestore();
     }

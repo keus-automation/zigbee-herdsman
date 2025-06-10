@@ -789,11 +789,10 @@ class ZStackAdapter extends Adapter {
 
     }
     
-    // public async manualRestore(): Promise<void> {
+    public async manualRestore(): Promise<void> {
 
-    //     await this.adapterManager.manualRestore();
-
-    // }
+        await this.adapterManager.manualRestore();
+    }
 
     /**
      * Event handlers
