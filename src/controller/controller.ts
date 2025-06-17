@@ -618,7 +618,17 @@ class Controller extends events.EventEmitter {
             const eventData: Events.DeviceJoinedPayload = { device };
             this.emit(Events.Events.deviceJoined, eventData);
         }
+        let networkAddressChanged = false;
+        if (device.networkAddress !== payload.networkAddress) {
+            debug.log(
+                `Device '${payload.ieeeAddr}' is already in database with different networkAddress, ` +
+                `updating networkAddress`
+            );
+            device.networkAddress = payload.networkAddress;
+            device.save();
 
+            networkAddressChanged = true;
+        }
         device.receivedMessage();
 
         if (!device.interviewCompleted && !device.interviewing) {
@@ -644,18 +654,6 @@ class Controller extends events.EventEmitter {
                 `Not interviewing '${payload.ieeeAddr}', completed '${device.interviewCompleted}', ` +
                 `in progress '${device.interviewing}'`
             );
-
-            let networkAddressChanged = false;
-            if (device.networkAddress !== payload.networkAddress) {
-                debug.log(
-                    `Device '${payload.ieeeAddr}' is already in database with different networkAddress, ` +
-                    `updating networkAddress`
-                );
-                device.networkAddress = payload.networkAddress;
-                device.save();
-
-                networkAddressChanged = true;
-            }
 
             const eventData: Events.DeviceRejoinedPayload = {device, networkAddressChanged: networkAddressChanged};
             this.emit(Events.Events.deviceRejoined, eventData);
