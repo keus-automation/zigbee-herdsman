@@ -421,14 +421,16 @@ class Controller extends events.EventEmitter {
                 
                 let networkParameters = await this.adapter.getNetworkParameters();
                 let networkOptions = this.adapter.getNwkOptions();
-
+                
                 response = { 
                     ...response,
                     deviceNwkInfo: {
                         deviceId: ieeeAddr,
                         shortaddr: nwkAddr,
                         linkKey: linkKey,
-                        ...networkParameters,
+                        panId: networkParameters.panID,
+                        channel: networkParameters.channel,
+                        extPanId: networkParameters.extendedPanIDArray,
                         nwkKey: networkOptions.networkKey 
                     }
                 }

@@ -905,8 +905,10 @@ class ZStackAdapter extends Adapter {
     public async getNetworkParameters(): Promise<NetworkParameters> {
         const result = await this.znp.request(Subsystem.ZDO, 'extNwkInfo', {});
         return {
-            panID: result.payload.panid, extendedPanID: result.payload.extendedpanid,
-            channel: result.payload.channel
+            panID: result.payload.panid, 
+            extendedPanID: result.payload.extendedpanid,
+            channel: result.payload.channel,
+            extendedPanIDArray: Array.from(Buffer.from(result.payload.extendedpanid.toString().slice(2), "hex")),
         };
     }
 
