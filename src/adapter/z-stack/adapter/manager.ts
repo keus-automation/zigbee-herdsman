@@ -512,34 +512,43 @@ export class ZnpAdapterManager {
     public async addOfflineDevice(ieeeAddr: string, nwkAddr: number, linkKey: Buffer): Promise<{success: boolean, message?: string, error?: string}> {
 
 /* security manager add direct approach*/
-
-        let response = await this.znp.request(
-            Subsystem.ZDO,
-            'secAddLinkKey',
+        try {
+            
+            let response = await this.znp.request(
+                Subsystem.ZDO,
+                'secAddLinkKey',
+                {
+                    shortaddr: nwkAddr,
+                    extaddr: ieeeAddr,
+                    linkkey: linkKey
+                }
+            );
+    
+            if(response.payload.status == ZnpCommandStatus.SUCCESS) 
             {
-                shortaddr: nwkAddr,
-                extaddr: ieeeAddr,
-                linkkey: linkKey
+                console.log(`Successfully added offline device with IEEE address ${ieeeAddr} and NWK address ${nwkAddr}`);
+    
+                return { 
+                    success: true, 
+                    message: `Successfully added offline device with IEEE address ${ieeeAddr} and NWK address ${nwkAddr}`
+                };
             }
-        );
-
-        if(response.payload.status == ZnpCommandStatus.SUCCESS) 
-        {
-            console.log(`Successfully added offline device with IEEE address ${ieeeAddr} and NWK address ${nwkAddr}`);
-
-            return { 
-                success: true, 
-                message: `Successfully added offline device with IEEE address ${ieeeAddr} and NWK address ${nwkAddr}`
-            };
+            else 
+            {
+                console.error(`Failed to add offline device with IEEE address ${ieeeAddr} and NWK address ${nwkAddr} - status: ${ZnpCommandStatus[response.payload.status]}`);
+    
+                return { 
+                    success: false,
+                    error: `Failed to add offline device with IEEE address ${ieeeAddr} and NWK address ${nwkAddr} - status: ${ZnpCommandStatus[response.payload.status]}`,
+                };
+            }
         }
-        else 
+        catch(error)
         {
-            console.error(`Failed to add offline device with IEEE address ${ieeeAddr} and NWK address ${nwkAddr} - status: ${ZnpCommandStatus[response.payload.status]}`);
-
-            return { 
+            return {
                 success: false,
-                error: `Failed to add offline device with IEEE address ${ieeeAddr} and NWK address ${nwkAddr} - status: ${ZnpCommandStatus[response.payload.status]}`,
-            };
+                error: `Failed to add offline device with IEEE address ${ieeeAddr} and NWK address ${nwkAddr} - exception occurred: ${error.message}`
+            }
         }
 
 /* security manager add direct approach end*/

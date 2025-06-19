@@ -36,6 +36,10 @@ abstract class Adapter extends events.EventEmitter {
         return true;
     }
 
+    public async getNwkOptions(): Promise<TsType.NetworkOptions> {
+        return {...this.networkOptions};
+    }
+
     /**
      * Utility
      */
@@ -165,7 +169,7 @@ abstract class Adapter extends events.EventEmitter {
 
     public abstract forceRemoveDevice(ieeeAddr: string): Promise<void>;
 
-    public async addOfflineDevice(ieeeAddr: string, nwkAddr: number, linkKey: Buffer): Promise<void> {}
+    public async addOfflineDevice(ieeeAddr: string, nwkAddr: number, linkKey: Buffer): Promise<any> {}
 
     public async manualRestore(): Promise<void> {}
 

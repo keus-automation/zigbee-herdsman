@@ -399,23 +399,42 @@ class Controller extends events.EventEmitter {
         }
     }
 
-    public async addOfflineDevice(ieeeAddr: string, nwkAddr: number, linkKey: Buffer, deviceTypeId: number ): Promise<void> {
-        await this.adapter.addOfflineDevice(ieeeAddr, nwkAddr, linkKey);
-        debug.log(`Device added offline '${ieeeAddr}'`);
+    public async addOfflineDevice(ieeeAddr: string, nwkAddr: number, linkKey: Buffer, deviceTypeId: number ): Promise<any> {
+        let response = await this.adapter.addOfflineDevice(ieeeAddr, nwkAddr, linkKey);
 
-        const device = Device.create(
-            'Router', ieeeAddr, nwkAddr, 43690,
-            undefined, undefined, undefined, true, 
-            [{ID: 15, profileID: 1,  deviceID: deviceTypeId, inputClusters:[2849], outputClusters : [2849]}]
-            ,this.dbInstKey, true
-        );
-        
+        if(response.success)
+        {
+            debug.log(`Device added offline '${ieeeAddr}'`);
+    
+            const device = Device.create(
+                'Router', ieeeAddr, nwkAddr, 43690,
+                undefined, undefined, undefined, true, 
+                [{ID: 15, profileID: 1,  deviceID: deviceTypeId, inputClusters:[2849], outputClusters : [2849]}]
+                ,this.dbInstKey, true
+            );
+            
+            debug.log(`Added device to db '${ieeeAddr}'`);
+            console.log('Offline addition of ' + ieeeAddr + " successfull ")
+    
+            const deviceInterviewPayload: Events.DeviceInterviewPayload = { status: 'successful', device };
+            this.emit(Events.Events.deviceInterview, deviceInterviewPayload);
 
-        debug.log(`Added device to db '${ieeeAddr}'`);
-        console.log('Offline addition of ' + ieeeAddr + " successfull ")
+            response = { 
+                ...response,
+                deviceNwkInfo: {
+                    deviceId: ieeeAddr,
+                    shortaddr: nwkAddr,
+                    linkKey: linkKey,
+                    ...this.adapter.getNwkOptions()
+                }
+            }
+        }
+        else 
+        {
+            debug.log(`Device adding offline failed '${ieeeAddr}'`);
+        }
 
-        const deviceInterviewPayload: Events.DeviceInterviewPayload = { status: 'successful', device };
-        this.emit(Events.Events.deviceInterview, deviceInterviewPayload);
+        return response;
     }
 
     public async manualBackup() {
