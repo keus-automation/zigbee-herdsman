@@ -36,7 +36,7 @@ abstract class Adapter extends events.EventEmitter {
         return true;
     }
 
-    public async getNwkOptions(): Promise<TsType.NetworkOptions> {
+    public getNwkOptions(): TsType.NetworkOptions {
         return {...this.networkOptions};
     }
 

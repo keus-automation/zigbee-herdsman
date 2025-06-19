@@ -404,29 +404,42 @@ class Controller extends events.EventEmitter {
 
         if(response.success)
         {
-            debug.log(`Device added offline '${ieeeAddr}'`);
-    
-            const device = Device.create(
-                'Router', ieeeAddr, nwkAddr, 43690,
-                undefined, undefined, undefined, true, 
-                [{ID: 15, profileID: 1,  deviceID: deviceTypeId, inputClusters:[2849], outputClusters : [2849]}]
-                ,this.dbInstKey, true
-            );
-            
-            debug.log(`Added device to db '${ieeeAddr}'`);
-            console.log('Offline addition of ' + ieeeAddr + " successfull ")
-    
-            const deviceInterviewPayload: Events.DeviceInterviewPayload = { status: 'successful', device };
-            this.emit(Events.Events.deviceInterview, deviceInterviewPayload);
+            try
+            {
+                const device = Device.create(
+                    'Router', ieeeAddr, nwkAddr, 43690,
+                    undefined, undefined, undefined, true, 
+                    [{ID: 15, profileID: 1,  deviceID: deviceTypeId, inputClusters:[2849], outputClusters : [2849]}]
+                    ,this.dbInstKey, true
+                );
+                
+                debug.log(`Added device to db '${ieeeAddr}'`);
+                console.log('Offline addition of ' + ieeeAddr + " successfull ")
+        
+                const deviceInterviewPayload: Events.DeviceInterviewPayload = { status: 'successful', device };
+                this.emit(Events.Events.deviceInterview, deviceInterviewPayload);
+                
+                let networkParameters = await this.adapter.getNetworkParameters();
+                let networkOptions = this.adapter.getNwkOptions();
 
-            response = { 
-                ...response,
-                deviceNwkInfo: {
-                    deviceId: ieeeAddr,
-                    shortaddr: nwkAddr,
-                    linkKey: linkKey,
-                    ...this.adapter.getNwkOptions()
+                response = { 
+                    ...response,
+                    deviceNwkInfo: {
+                        deviceId: ieeeAddr,
+                        shortaddr: nwkAddr,
+                        linkKey: linkKey,
+                        ...networkParameters,
+                        nwkKey: networkOptions.networkKey 
+                    }
                 }
+                
+                debug.log(`Device added offline '${ieeeAddr}'`);
+            }
+            catch(err)
+            {
+                let errMessage = err instanceof Error ? err.message : err;
+                debug.error(`Device adding offline failed '${ieeeAddr}' with error '${errMessage}'`);
+                response = { success: false, error: `Device adding offline failed with error '${errMessage}'` };
             }
         }
         else 
