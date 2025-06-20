@@ -427,7 +427,7 @@ class Controller extends events.EventEmitter {
                     deviceNwkInfo: {
                         deviceId: ieeeAddr,
                         shortaddr: nwkAddr,
-                        linkKey: linkKey,
+                        linkKey: Array.from(linkKey),
                         panId: networkParameters.panID,
                         channel: networkParameters.channel,
                         extPanId: networkParameters.extendedPanIDArray,
