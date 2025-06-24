@@ -378,6 +378,11 @@ class Endpoint extends Entity {
             if (!options.disableResponse) {
                 this.checkStatus(result.frame.Payload);
             }
+
+            if(result){
+                return result.frame.Payload;
+            }
+            
         } catch (error) {
             error.message = `${log} failed (${error.message})`;
             debug.error(error.message);
@@ -493,20 +498,20 @@ class Endpoint extends Entity {
         if (typeof target === 'number') {
             target = Group.byGroupID(this._dbInstKey, target) || Group.create(this._dbInstKey, target);
         }
-
         const destinationAddress = target instanceof Endpoint ? target.deviceIeeeAddress : target.groupID;
 
         const log = `Bind ${this.deviceIeeeAddress}/${this.ID} ${cluster.name} from ` +
             `'${target instanceof Endpoint ? `${destinationAddress}/${target.ID}` : destinationAddress}'`;
         debug.info(log);
-
+            
         try {
-            await Entity.adapters[this._dbInstKey].bind(
+            const result = await Entity.adapters[this._dbInstKey].bind(
                 this.deviceNetworkAddress, this.deviceIeeeAddress, this.ID, cluster.ID, destinationAddress, type,
                 target instanceof Endpoint ? target.ID : null,
             );
 
             this.addBinding(clusterKey, target);
+            return result;
         } catch (error) {
             error.message = `${log} failed (${error.message})`;
             debug.error(error.message);
@@ -530,7 +535,7 @@ class Endpoint extends Entity {
         debug.info(log);
 
         try {
-            await Entity.adapters[this._dbInstKey].unbind(
+            const result = await Entity.adapters[this._dbInstKey].unbind(
                 this.deviceNetworkAddress, this.deviceIeeeAddress, this.ID, cluster.ID, destinationAddress, type,
                 target instanceof Endpoint ? target.ID : null,
             );
@@ -544,6 +549,8 @@ class Endpoint extends Entity {
                 this._binds.splice(index, 1);
                 this.save();
             }
+            return result;
+
         } catch (error) {
             error.message = `${log} failed (${error.message})`;
             debug.error(error.message);
@@ -648,6 +655,10 @@ class Endpoint extends Entity {
             }
 
             this.save();
+
+            if (result) {
+                return result.frame.Payload;
+            }
         } catch (error) {
             error.message = `${log} failed (${error.message})`;
             debug.error(error.message);

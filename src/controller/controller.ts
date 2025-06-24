@@ -359,6 +359,10 @@ class Controller extends events.EventEmitter {
         }
     }
 
+    public async hasCoordinatorStarted(): Promise<boolean> {
+        return this.adapter.hasCoordinatorStarted();
+    }
+
     public async checkHostHealth(): Promise<boolean> {
         return this.adapter.pingZNPHost();
     }
@@ -632,7 +636,10 @@ class Controller extends events.EventEmitter {
                 const event: Events.DeviceInterviewPayload = { status: 'failed', device };
                 this.emit(Events.Events.deviceInterview, event);
             }
-        } else if(!device.interviewing) {
+        } 
+        else if (!device.interviewing)
+        {
+
             debug.log(
                 `Not interviewing '${payload.ieeeAddr}', completed '${device.interviewCompleted}', ` +
                 `in progress '${device.interviewing}'`
