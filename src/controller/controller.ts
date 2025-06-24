@@ -406,19 +406,35 @@ class Controller extends events.EventEmitter {
         {
             try
             {
-                const device = Device.create(
-                    'Router', ieeeAddr, nwkAddr, 43690,
-                    undefined, undefined, undefined, true, 
-                    [{ID: 15, profileID: 1,  deviceID: deviceTypeId, inputClusters:[2849], outputClusters : [2849]}]
-                    ,this.dbInstKey, true
-                );
-                
-                debug.log(`Added device to db '${ieeeAddr}'`);
+
+                let device = Device.byIeeeAddr(this.dbInstKey, ieeeAddr);
+                if (!device) {
+                    debug.log(`New device '${ieeeAddr}' added offline`);
+                    debug.log(`Creating device '${ieeeAddr}'`);
+                    device = Device.create(
+                        'Router', ieeeAddr, nwkAddr, 43690,
+                        undefined, undefined, undefined, true, 
+                        [{ID: 15, profileID: 1,  deviceID: deviceTypeId, inputClusters:[2849], outputClusters : [2849]}]
+                        ,this.dbInstKey, true
+                    );
+
+                    const deviceInterviewPayload: Events.DeviceInterviewPayload = { status: 'successful', device };
+                    this.emit(Events.Events.deviceInterview, deviceInterviewPayload);
+                }
+                else if (device.networkAddress !== nwkAddr) {
+                    debug.log(
+                        `Device '${ieeeAddr}' is already in database with different networkAddress, ` +
+                        `updating networkAddress`
+                    );
+                    device.networkAddress = nwkAddr;
+                    device.save();
+
+                    const eventData: Events.DeviceRejoinedPayload = {device, networkAddressChanged: true};
+                    this.emit(Events.Events.deviceRejoined, eventData);
+                }
+
                 console.log('Offline addition of ' + ieeeAddr + " successfull ")
-        
-                const deviceInterviewPayload: Events.DeviceInterviewPayload = { status: 'successful', device };
-                this.emit(Events.Events.deviceInterview, deviceInterviewPayload);
-                
+                        
                 let networkParameters = await this.adapter.getNetworkParameters();
                 let networkOptions = this.adapter.getNwkOptions();
                 
