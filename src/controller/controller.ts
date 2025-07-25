@@ -399,23 +399,77 @@ class Controller extends events.EventEmitter {
         }
     }
 
-    public async addOfflineDevice(ieeeAddr: string, nwkAddr: number, linkKey: Buffer, deviceTypeId: number ): Promise<void> {
-        await this.adapter.addOfflineDevice(ieeeAddr, nwkAddr, linkKey);
-        debug.log(`Device added offline '${ieeeAddr}'`);
-
-        const device = Device.create(
-            'Router', ieeeAddr, nwkAddr, 43690,
-            undefined, undefined, undefined, true, 
-            [{ID: 15, profileID: 1,  deviceID: deviceTypeId, inputClusters:[2849], outputClusters : [2849]}]
-            ,this.dbInstKey, true
-        );
+    public async addOfflineDevice(ieeeAddr: string, nwkAddr: number, linkKey: Buffer, deviceTypeId: number ): Promise<any> {
         
+        // skipping adding to security manager, firmware update required for support
+        // let response = await this.adapter.addOfflineDevice(ieeeAddr, nwkAddr, linkKey);
 
-        debug.log(`Added device to db '${ieeeAddr}'`);
-        console.log('Offline addition of ' + ieeeAddr + " successfull ")
+        let response:any = { success: true };
 
-        const deviceInterviewPayload: Events.DeviceInterviewPayload = { status: 'successful', device };
-        this.emit(Events.Events.deviceInterview, deviceInterviewPayload);
+        if(response.success)
+        {
+            try
+            {
+
+                let device = Device.byIeeeAddr(this.dbInstKey, ieeeAddr);
+                if (!device) {
+                    debug.log(`New device '${ieeeAddr}' added offline`);
+                    debug.log(`Creating device '${ieeeAddr}'`);
+                    device = Device.create(
+                        'Router', ieeeAddr, nwkAddr, 43690,
+                        undefined, undefined, undefined, true, 
+                        [{ID: 15, profileID: 1,  deviceID: deviceTypeId, inputClusters:[2849], outputClusters : [2849]}]
+                        ,this.dbInstKey, true
+                    );
+
+                    const deviceInterviewPayload: Events.DeviceInterviewPayload = { status: 'successful', device };
+                    this.emit(Events.Events.deviceInterview, deviceInterviewPayload);
+                }
+                else if (device.networkAddress !== nwkAddr) {
+                    debug.log(
+                        `Device '${ieeeAddr}' is already in database with different networkAddress, ` +
+                        `updating networkAddress`
+                    );
+                    device.networkAddress = nwkAddr;
+                    device.save();
+
+                    const eventData: Events.DeviceRejoinedPayload = {device, networkAddressChanged: true};
+                    this.emit(Events.Events.deviceRejoined, eventData);
+                }
+
+                console.log('Offline addition of ' + ieeeAddr + " successfull ")
+                        
+                let networkParameters = await this.adapter.getNetworkParameters();
+                let networkOptions = this.adapter.getNwkOptions();
+                
+                response = { 
+                    ...response,
+                    deviceNwkInfo: {
+                        deviceId: ieeeAddr,
+                        shortaddr: nwkAddr,
+                        linkKey: Array.from(linkKey),
+                        panId: networkParameters.panID,
+                        channel: networkParameters.channel,
+                        extPanId: networkParameters.extendedPanIDArray,
+                        nwkKey: networkOptions.networkKey 
+                    }
+                }
+                
+                debug.log(`Device added offline '${ieeeAddr}'`);
+            }
+            catch(err)
+            {
+                let errMessage = err instanceof Error ? err.message : err;
+                debug.error(`Device adding offline failed '${ieeeAddr}' with error '${errMessage}'`);
+                response = { success: false, error: `Device adding offline failed with error '${errMessage}'` };
+            }
+        }
+        else 
+        {
+            debug.log(`Device adding offline failed '${ieeeAddr}'`);
+        }
+
+        return response;
     }
 
     public async manualBackup() {
@@ -618,7 +672,17 @@ class Controller extends events.EventEmitter {
             const eventData: Events.DeviceJoinedPayload = { device };
             this.emit(Events.Events.deviceJoined, eventData);
         }
+        let networkAddressChanged = false;
+        if (device.networkAddress !== payload.networkAddress) {
+            debug.log(
+                `Device '${payload.ieeeAddr}' is already in database with different networkAddress, ` +
+                `updating networkAddress`
+            );
+            device.networkAddress = payload.networkAddress;
+            device.save();
 
+            networkAddressChanged = true;
+        }
         device.receivedMessage();
 
         if (!device.interviewCompleted && !device.interviewing) {
@@ -644,18 +708,6 @@ class Controller extends events.EventEmitter {
                 `Not interviewing '${payload.ieeeAddr}', completed '${device.interviewCompleted}', ` +
                 `in progress '${device.interviewing}'`
             );
-
-            let networkAddressChanged = false;
-            if (device.networkAddress !== payload.networkAddress) {
-                debug.log(
-                    `Device '${payload.ieeeAddr}' is already in database with different networkAddress, ` +
-                    `updating networkAddress`
-                );
-                device.networkAddress = payload.networkAddress;
-                device.save();
-
-                networkAddressChanged = true;
-            }
 
             const eventData: Events.DeviceRejoinedPayload = {device, networkAddressChanged: networkAddressChanged};
             this.emit(Events.Events.deviceRejoined, eventData);

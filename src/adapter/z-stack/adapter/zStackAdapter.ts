@@ -783,17 +783,16 @@ class ZStackAdapter extends Adapter {
         debug('Removed device security info ', resultSecDeviceRemove);
     }
 
-    public async addOfflineDevice(ieeeAddr: string, nwkAddr: number, linkKey: Buffer): Promise<void> {
+    public async addOfflineDevice(ieeeAddr: string, nwkAddr: number, linkKey: Buffer): Promise<any> {
 
-        await this.adapterManager.addOfflineDevice(ieeeAddr.split("0x")[1], nwkAddr, linkKey)
+        return await this.adapterManager.addOfflineDevice(ieeeAddr.split("0x")[1], nwkAddr, linkKey)
 
     }
     
-    // public async manualRestore(): Promise<void> {
+    public async manualRestore(): Promise<void> {
 
-    //     await this.adapterManager.manualRestore();
-
-    // }
+        await this.adapterManager.manualRestore();
+    }
 
     /**
      * Event handlers
@@ -906,8 +905,10 @@ class ZStackAdapter extends Adapter {
     public async getNetworkParameters(): Promise<NetworkParameters> {
         const result = await this.znp.request(Subsystem.ZDO, 'extNwkInfo', {});
         return {
-            panID: result.payload.panid, extendedPanID: result.payload.extendedpanid,
-            channel: result.payload.channel
+            panID: result.payload.panid, 
+            extendedPanID: result.payload.extendedpanid,
+            channel: result.payload.channel,
+            extendedPanIDArray: Array.from(Buffer.from(result.payload.extendedpanid.toString().slice(2), "hex")),
         };
     }
 
