@@ -400,7 +400,11 @@ class Controller extends events.EventEmitter {
     }
 
     public async addOfflineDevice(ieeeAddr: string, nwkAddr: number, linkKey: Buffer, deviceTypeId: number ): Promise<any> {
-        let response = await this.adapter.addOfflineDevice(ieeeAddr, nwkAddr, linkKey);
+        
+        // skipping adding to security manager, firmware update required for support
+        // let response = await this.adapter.addOfflineDevice(ieeeAddr, nwkAddr, linkKey);
+
+        let response:any = { success: true };
 
         if(response.success)
         {
