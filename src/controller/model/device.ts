@@ -445,7 +445,7 @@ class Device extends Entity {
         };
 
         let gotNodeDescriptor = false;
-        for (let attempt = 0; attempt < 6; attempt++) {
+        for (let attempt = 0; attempt < 2; attempt++) {
             try {
                 await nodeDescriptorQuery();
                 gotNodeDescriptor = true;
