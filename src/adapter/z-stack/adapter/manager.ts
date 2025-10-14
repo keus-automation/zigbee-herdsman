@@ -153,8 +153,6 @@ export class ZnpAdapterManager {
             Utils.compareNetworkOptions(this.nwkOptions, backup.networkOptions, true)
         );
 
-        const enableCustomKeusNetworkSettings = true;
-
         /* Determine startup strategy */
         if (!hasConfigured || !hasConfigured.isConfigured() || !nib) {
             /* Adapter is not configured or not commissioned */
@@ -185,26 +183,6 @@ export class ZnpAdapterManager {
 
                 /* Configuration matches adapter state - regular startup */
                 this.debug.strategy("(stage-2) adapter state matches configuration");
-
-                //write update nib
-                //check nib params
-                if( enableCustomKeusNetworkSettings && 
-                    (
-                        nib.BroadcastDeliveryTime != 60 || 
-                        nib.MaxBroadcastRetries != 3 ||
-                        nib.PassiveAckTimeout != 5 
-                    )
-                )
-                {
-                    this.debug.strategy("(stage-2a) Keus NIB network settings did not match");
-                    nib.BroadcastDeliveryTime = 60;
-                    nib.MaxBroadcastRetries = 3;
-                    nib.PassiveAckTimeout = 5;
-                    /* write update nib */
-                    await this.nv.writeItem(NvItemsIds.NIB, nib);
-                    await Wait(5000);
-                }
-
 
                 return "startup";
             } else {
@@ -439,6 +417,19 @@ export class ZnpAdapterManager {
                 ]);
             }
         }
+
+        let activeEps = activeEp.payload.activeeplist;
+        let epList = Endpoints.reduce((list, ep) => { list.push(ep.endpoint); return list; }, []);
+        for (const endpoint of activeEps) 
+        {
+            if( !epList.includes(endpoint))
+            {
+                this.debug.startup(`deleting endpoint '${endpoint}'`);
+                await this.znp.request(Subsystem.AF, 'delete', {endpoint}, null, null, [
+                    ZnpCommandStatus.SUCCESS, ZnpCommandStatus.INVALID_PARAM, ZnpCommandStatus.FAILURE
+                ]);
+            }
+        }
     }
 
     /**
@@ -471,6 +462,32 @@ export class ZnpAdapterManager {
         await this.nv.writeItem(NvItemsIds.STARTUP_OPTION, Buffer.from([0x03]));
         await this.resetAdapter();
         await this.nv.writeItem(NvItemsIds.STARTUP_OPTION, Buffer.from([0x00]));
+    }
+
+    /**
+     * Expose method reconfigure adapter with options
+     * wipe - reset adapter config and data.
+     * configure - configure nv items
+     */
+    public async reconfigureAdapter(wipe: boolean, configItems?: {id: NvItemsIds, value: Buffer}[]): Promise<void> {
+        if (wipe) {
+            this.debug.startup("Wiping adapter using startup option 3");
+            await this.nv.writeItem(NvItemsIds.STARTUP_OPTION, Buffer.from([0x03]));
+            await this.resetAdapter();
+            await this.nv.writeItem(NvItemsIds.STARTUP_OPTION, Buffer.from([0x00]));
+        }
+
+        if (configItems) {
+            for (const item of configItems) {
+                this.debug.startup(`Configuring NV item ${NvItemsIds[item.id]} with value ${item.value.toString('hex')}`);
+                await this.nv.writeItem(item.id, item.value);
+            }
+
+            await this.resetAdapter();
+        }
+
+        // trigger start to apply changes
+        this.start();
     }
 
     /**

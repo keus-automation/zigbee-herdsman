@@ -237,6 +237,10 @@ class ZStackAdapter extends Adapter {
         }
     }
 
+    public async reconfigureAdapter(wipe: boolean, configItems: {id: number, value: Buffer}[]): Promise<void> {
+        return this.adapterManager.reconfigureAdapter(wipe, configItems);
+    }
+
     public async supportsLED(): Promise<boolean> {
         return this.supportsLED_;
     }

@@ -21,6 +21,28 @@ const EndpointDefaults: {
 
 export const Endpoints = [
     {...EndpointDefaults, endpoint: 1, appprofid: 0x0104},
+    {
+        ...EndpointDefaults,
+        endpoint: 11,
+        appprofid: 0x0104,
+        appdeviceid: 0x0400,
+        appnumoutclusters: 2,
+        appoutclusterlist: [Zcl.Utils.getCluster('ssIasZone').ID, Zcl.Utils.getCluster('ssIasWd').ID],
+        appnuminclusters: 1,
+        appinclusterlist: [Zcl.Utils.getCluster('ssIasAce').ID]
+
+    },
+    {
+        ...EndpointDefaults,
+        endpoint: 15,
+        appprofid: 0x01,
+        appnuminclusters: 1,
+        appinclusterlist: [Zcl.Utils.getCluster('keus').ID]
+    },
+];
+
+export const zhEndpoints = [
+    {...EndpointDefaults, endpoint: 1, appprofid: 0x0104},
     {...EndpointDefaults, endpoint: 2, appprofid: 0x0101},
     // Required for https://github.com/Koenkk/zigbee-herdsman-converters/commit/d0fb06c2429171f327950484ea3dec80864637cc
     {...EndpointDefaults, endpoint: 3, appprofid: 0x0104},
