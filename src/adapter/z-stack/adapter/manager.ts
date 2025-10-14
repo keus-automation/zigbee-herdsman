@@ -90,14 +90,14 @@ export class ZnpAdapterManager {
         }
         }
 
-        let nvItemData = await this.nv.readItem(NvItemsIds.BCAST_RETRIES);
-        this.debug.startup(`<<-- broadcast retries: ${nvItemData} -->>`);
-        nvItemData = await this.nv.readItem(NvItemsIds.PASSIVE_ACK_TIMEOUT);
-        this.debug.startup(`<<-- passive ack timeout: ${nvItemData} -->>`);
-        nvItemData = await this.nv.readItem(NvItemsIds.BCAST_DELIVERY_TIME);
-        this.debug.startup(`<<-- broadcast delivery time: ${nvItemData} -->>`);
-        nvItemData = await this.nv.readItem(NvItemsIds.NWK_CHILD_AGE_ENABLE);
-        this.debug.startup(`<<-- network child age enable: ${nvItemData} -->>`);
+        let bcast = await this.nv.readItem(NvItemsIds.BCAST_RETRIES);
+        let pat = await this.nv.readItem(NvItemsIds.PASSIVE_ACK_TIMEOUT);
+        let bdt = await this.nv.readItem(NvItemsIds.BCAST_DELIVERY_TIME);
+        let ce = await this.nv.readItem(NvItemsIds.NWK_CHILD_AGE_ENABLE);
+        this.debug.startup(`<<-- broadcast retries: ${Array.from(bcast)} -->>`);
+        this.debug.startup(`<<-- passive ack timeout: ${Array.from(pat)} -->>`);
+        this.debug.startup(`<<-- broadcast delivery time: ${Array.from(bdt)} -->>`);
+        this.debug.startup(`<<-- network child age enable: ${Array.from(ce)} -->>`);
 
         /* register endpoints */
         await this.registerEndpoints();
@@ -427,20 +427,7 @@ export class ZnpAdapterManager {
             }
         }
 
-        let activeEps = activeEp.payload.activeeplist;
-        let epList = Endpoints.reduce((list, ep) => { list.push(ep.endpoint); return list; }, []);
-        for (const endpoint of activeEps) 
-        {
-            if( !epList.includes(endpoint))
-            {
-                this.debug.startup(`deleting endpoint '${endpoint}'`);
-                await this.znp.request(Subsystem.AF, 'delete', {endpoint}, null, null, [
-                    ZnpCommandStatus.SUCCESS, ZnpCommandStatus.INVALID_PARAM, ZnpCommandStatus.FAILURE
-                ]);
-            }
-        }
-
-        this.debug.startup(`<<-- registered endpoints: ${activeEps.join(", ")} -->>`);
+        this.debug.startup(`<<-- registered endpoints: ${activeEp.payload.activeeplist.join(", ")} -->>`);
     }
 
     /**

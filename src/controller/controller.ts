@@ -211,6 +211,10 @@ class Controller extends events.EventEmitter {
         return startResult;
     }
 
+    public async configureAdapter(wipe: boolean, configItems: {id: number, value: Buffer}[]): Promise<void> {
+        await this.adapter.reconfigureAdapter(wipe, configItems);
+    }
+
     public async touchlinkIdentify(ieeeAddr: string, channel: number): Promise<void> {
         await this.touchlink.identify(ieeeAddr, channel);
     }
