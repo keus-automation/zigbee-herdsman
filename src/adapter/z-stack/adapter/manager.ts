@@ -90,6 +90,15 @@ export class ZnpAdapterManager {
         }
         }
 
+        let nvItemData = await this.nv.readItem(NvItemsIds.BCAST_RETRIES);
+        this.debug.startup(`<<-- broadcast retries: ${nvItemData} -->>`);
+        nvItemData = await this.nv.readItem(NvItemsIds.PASSIVE_ACK_TIMEOUT);
+        this.debug.startup(`<<-- passive ack timeout: ${nvItemData} -->>`);
+        nvItemData = await this.nv.readItem(NvItemsIds.BCAST_DELIVERY_TIME);
+        this.debug.startup(`<<-- broadcast delivery time: ${nvItemData} -->>`);
+        nvItemData = await this.nv.readItem(NvItemsIds.NWK_CHILD_AGE_ENABLE);
+        this.debug.startup(`<<-- network child age enable: ${nvItemData} -->>`);
+
         /* register endpoints */
         await this.registerEndpoints();
 
@@ -430,6 +439,8 @@ export class ZnpAdapterManager {
                 ]);
             }
         }
+
+        this.debug.startup(`<<-- registered endpoints: ${activeEps.join(", ")} -->>`);
     }
 
     /**
