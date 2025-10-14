@@ -468,11 +468,16 @@ export class ZnpAdapterManager {
      * configure - configure nv items
      */
     public async reconfigureAdapter(wipe: boolean, configItems?: {id: NvItemsIds, value: Buffer}[]): Promise<void> {
+        
+        let startRequired = false;
+
         if (wipe) {
             this.debug.startup("Wiping adapter using startup option 3");
             await this.nv.writeItem(NvItemsIds.STARTUP_OPTION, Buffer.from([0x03]));
             await this.resetAdapter();
             await this.nv.writeItem(NvItemsIds.STARTUP_OPTION, Buffer.from([0x00]));
+
+            startRequired = true;
         }
 
         if (configItems) {
@@ -482,10 +487,13 @@ export class ZnpAdapterManager {
             }
 
             await this.resetAdapter();
+
+            startRequired = true;
         }
 
         // trigger start to apply changes
-        this.start();
+        if(startRequired)
+            this.start();
     }
 
     /**
