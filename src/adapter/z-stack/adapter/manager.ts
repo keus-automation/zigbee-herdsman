@@ -467,7 +467,7 @@ export class ZnpAdapterManager {
      * wipe - reset adapter config and data.
      * configure - configure nv items
      */
-    public async reconfigureAdapter(wipe: boolean, configItems?: {id: NvItemsIds, value: Buffer}[]): Promise<void> {
+    public async reconfigureAdapter(wipe: boolean, configItems?: {id: NvItemsIds, value: number[]}[]): Promise<void> {
         
         let startRequired = false;
 
@@ -480,10 +480,10 @@ export class ZnpAdapterManager {
             startRequired = true;
         }
 
-        if (configItems) {
+        if (configItems && configItems.length) {
             for (const item of configItems) {
-                this.debug.startup(`Configuring NV item ${NvItemsIds[item.id]} with value ${item.value.toString('hex')}`);
-                await this.nv.writeItem(item.id, item.value);
+                this.debug.startup(`Configuring NV item ${NvItemsIds[item.id]} with value ${item.value.toString()}`);
+                await this.nv.writeItem(item.id, Buffer.from(item.value));
             }
 
             await this.resetAdapter();

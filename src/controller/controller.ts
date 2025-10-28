@@ -211,7 +211,7 @@ class Controller extends events.EventEmitter {
         return startResult;
     }
 
-    public async configureAdapter(wipe: boolean, configItems: {id: number, value: Buffer}[]): Promise<void> {
+    public async configureAdapter(wipe: boolean, configItems?: {id: number, value: number[]}[]): Promise<void> {
         await this.adapter.reconfigureAdapter(wipe, configItems);
     }
 
