@@ -90,6 +90,15 @@ export class ZnpAdapterManager {
         }
         }
 
+        let bcast = await this.nv.readItem(NvItemsIds.BCAST_RETRIES);
+        let pat = await this.nv.readItem(NvItemsIds.PASSIVE_ACK_TIMEOUT);
+        let bdt = await this.nv.readItem(NvItemsIds.BCAST_DELIVERY_TIME);
+        let ce = await this.nv.readItem(NvItemsIds.NWK_CHILD_AGE_ENABLE);
+        this.debug.startup(`<<-- broadcast retries: ${Array.from(bcast)} -->>`);
+        this.debug.startup(`<<-- passive ack timeout: ${Array.from(pat)} -->>`);
+        this.debug.startup(`<<-- broadcast delivery time: ${Array.from(bdt)} -->>`);
+        this.debug.startup(`<<-- network child age enable: ${Array.from(ce)} -->>`);
+
         /* register endpoints */
         await this.registerEndpoints();
 
@@ -153,8 +162,6 @@ export class ZnpAdapterManager {
             Utils.compareNetworkOptions(this.nwkOptions, backup.networkOptions, true)
         );
 
-        const enableCustomKeusNetworkSettings = true;
-
         /* Determine startup strategy */
         if (!hasConfigured || !hasConfigured.isConfigured() || !nib) {
             /* Adapter is not configured or not commissioned */
@@ -185,26 +192,6 @@ export class ZnpAdapterManager {
 
                 /* Configuration matches adapter state - regular startup */
                 this.debug.strategy("(stage-2) adapter state matches configuration");
-
-                //write update nib
-                //check nib params
-                if( enableCustomKeusNetworkSettings && 
-                    (
-                        nib.BroadcastDeliveryTime != 60 || 
-                        nib.MaxBroadcastRetries != 3 ||
-                        nib.PassiveAckTimeout != 5 
-                    )
-                )
-                {
-                    this.debug.strategy("(stage-2a) Keus NIB network settings did not match");
-                    nib.BroadcastDeliveryTime = 60;
-                    nib.MaxBroadcastRetries = 3;
-                    nib.PassiveAckTimeout = 5;
-                    /* write update nib */
-                    await this.nv.writeItem(NvItemsIds.NIB, nib);
-                    await Wait(5000);
-                }
-
 
                 return "startup";
             } else {
@@ -439,6 +426,8 @@ export class ZnpAdapterManager {
                 ]);
             }
         }
+
+        this.debug.startup(`<<-- registered endpoints: ${activeEp.payload.activeeplist.join(", ")} -->>`);
     }
 
     /**
@@ -471,6 +460,40 @@ export class ZnpAdapterManager {
         await this.nv.writeItem(NvItemsIds.STARTUP_OPTION, Buffer.from([0x03]));
         await this.resetAdapter();
         await this.nv.writeItem(NvItemsIds.STARTUP_OPTION, Buffer.from([0x00]));
+    }
+
+    /**
+     * Expose method reconfigure adapter with options
+     * wipe - reset adapter config and data.
+     * configure - configure nv items
+     */
+    public async reconfigureAdapter(wipe: boolean, configItems?: {id: NvItemsIds, value: number[]}[]): Promise<void> {
+        
+        let startRequired = false;
+
+        if (wipe) {
+            this.debug.startup("Wiping adapter using startup option 3");
+            await this.nv.writeItem(NvItemsIds.STARTUP_OPTION, Buffer.from([0x03]));
+            await this.resetAdapter();
+            await this.nv.writeItem(NvItemsIds.STARTUP_OPTION, Buffer.from([0x00]));
+
+            startRequired = true;
+        }
+
+        if (configItems && configItems.length) {
+            for (const item of configItems) {
+                this.debug.startup(`Configuring NV item ${NvItemsIds[item.id]} with value ${item.value.toString()}`);
+                await this.nv.writeItem(item.id, Buffer.from(item.value));
+            }
+
+            await this.resetAdapter();
+
+            startRequired = true;
+        }
+
+        // trigger start to apply changes
+        if(startRequired)
+            this.start();
     }
 
     /**
