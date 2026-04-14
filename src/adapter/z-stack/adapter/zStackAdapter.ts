@@ -997,7 +997,6 @@ class ZStackAdapter extends Adapter {
         };
 
         const waiter = this.waitress.waitFor(payload, timeout);
-        console.log("Zstack adapter: ", waiter.ID);
         const cancel = (): void => this.waitress.remove(waiter.ID);
         return {start: waiter.start, cancel};
     }
@@ -1129,7 +1128,6 @@ class ZStackAdapter extends Adapter {
 
     private waitressValidator(payload: Events.ZclDataPayload, matcher: WaitressMatcher): boolean {
         const transactionSequenceNumber = payload.frame.Header.transactionSequenceNumber;
-        console.log("Payload transId : " + transactionSequenceNumber  + " --- Matcher transId : " +matcher.transactionSequenceNumber )
         return (!matcher.address || payload.address === matcher.address) &&
             payload.endpoint === matcher.endpoint &&
             (!matcher.transactionSequenceNumber || transactionSequenceNumber === matcher.transactionSequenceNumber) &&
