@@ -709,12 +709,27 @@ class Controller extends events.EventEmitter {
     }
 
     private onDeviceLeave(payload: AdapterEvents.DeviceLeavePayload): void {
-        debug.log(`Device leave '${payload.ieeeAddr}'`);
+        debug.log(`Device leave '${payload.ieeeAddr}' (rejoin: ${payload.rejoin})`);
 
         const device = Device.byIeeeAddr(this.dbInstKey, payload.ieeeAddr);
+
         if (device) {
-            debug.log(`Removing device from database '${payload.ieeeAddr}'`);
-            device.removeFromDatabase();
+            if (payload.rejoin) {
+                /**
+                 * The device is announcing that it is coming straight back - this
+                 * is what a rejoin or a router-driven move looks like. Deleting
+                 * the row here would throw away its endpoints, bindings and group
+                 * membership for a device that has not actually gone anywhere.
+                 *
+                 * Any in-flight interview is still aborted: whatever it was told
+                 * before the rejoin cannot be trusted, and it will be
+                 * re-interviewed if it comes back not yet interviewed.
+                 */
+                debug.log(`Keeping '${payload.ieeeAddr}' in database: leave was a rejoin`);
+            } else {
+                debug.log(`Removing device from database '${payload.ieeeAddr}'`);
+                device.removeFromDatabase();
+            }
         }
 
         const data: Events.DeviceLeavePayload = {

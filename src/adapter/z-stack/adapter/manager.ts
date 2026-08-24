@@ -90,14 +90,16 @@ export class ZnpAdapterManager {
         }
         }
 
-        let bcast = await this.nv.readItem(NvItemsIds.BCAST_RETRIES);
-        let pat = await this.nv.readItem(NvItemsIds.PASSIVE_ACK_TIMEOUT);
-        let bdt = await this.nv.readItem(NvItemsIds.BCAST_DELIVERY_TIME);
-        let ce = await this.nv.readItem(NvItemsIds.NWK_CHILD_AGE_ENABLE);
-        this.debug.startup(`<<-- broadcast retries: ${Array.from(bcast)} -->>`);
-        this.debug.startup(`<<-- passive ack timeout: ${Array.from(pat)} -->>`);
-        this.debug.startup(`<<-- broadcast delivery time: ${Array.from(bdt)} -->>`);
-        this.debug.startup(`<<-- network child age enable: ${Array.from(ce)} -->>`);
+        /**
+         * Purely informational. nv.readItem() returns null for an item that is not
+         * present, and Array.from(null) throws - so an absent NV item here used to
+         * abort start() and leave the adapter down. A debug line must never be able
+         * to do that.
+         */
+        await this.logNwkSetting('broadcast retries', NvItemsIds.BCAST_RETRIES);
+        await this.logNwkSetting('passive ack timeout', NvItemsIds.PASSIVE_ACK_TIMEOUT);
+        await this.logNwkSetting('broadcast delivery time', NvItemsIds.BCAST_DELIVERY_TIME);
+        await this.logNwkSetting('network child age enable', NvItemsIds.NWK_CHILD_AGE_ENABLE);
 
         /* register endpoints */
         await this.registerEndpoints();
@@ -405,6 +407,18 @@ export class ZnpAdapterManager {
                     0x6c, 0x69, 0x61, 0x6e, 0x63, 0x65, 0x30, 0x39, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
                 ])
             );
+        }
+    }
+
+    /**
+     * Logs one network NV setting, tolerating an absent item or a read failure.
+     */
+    private async logNwkSetting(label: string, id: NvItemsIds): Promise<void> {
+        try {
+            const value = await this.nv.readItem(id);
+            this.debug.startup(`<<-- ${label}: ${value ? Array.from(value) : 'not set'} -->>`);
+        } catch (error) {
+            this.debug.startup(`<<-- ${label}: unreadable (${error}) -->>`);
         }
     }
 
