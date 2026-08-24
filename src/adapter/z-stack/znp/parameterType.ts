@@ -21,6 +21,11 @@ enum ParameterType {
     LIST_ASSOC_DEV = 17,
 
     INT8 = 18,
+
+    // kz-mesh hook: decoders live in ../kz-mesh/buffalo (MT_UTIL 0x68/0x69/0x6A)
+    LIST_KZ_NEIGHBOR = 19,
+    LIST_KZ_RTG = 20,
+    LIST_KZ_SRC_RTG = 21,
 }
 
 export default ParameterType;

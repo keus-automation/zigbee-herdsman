@@ -3,6 +3,8 @@ import {
     DeviceType, ActiveEndpoints, SimpleDescriptor, LQI, RoutingTable, NetworkParameters,
     StartResult, LQINeighbor, RoutingTableEntry, AdapterOptions,
 } from '../../tstype';
+// kz-mesh hook: all Keus mesh diagnostics live in ../kz-mesh
+import * as KzMesh from '../kz-mesh';
 import {ZnpVersion} from './tstype';
 import * as Events from '../../events';
 import Adapter from '../../adapter';
@@ -64,6 +66,7 @@ class ZStackAdapter extends Adapter {
     private closing: boolean;
     private queue: Queue;
     private supportsLED_: boolean;
+    private supportsKzMesh_: boolean;
     private interpanLock: boolean;
     private interpanEndpointRegistered: boolean;
     private waitress: Waitress<Events.ZclDataPayload, WaitressMatcher>;
@@ -81,6 +84,7 @@ class ZStackAdapter extends Adapter {
         this.interpanLock = false;
         this.interpanEndpointRegistered = false;
         this.closing = false;
+        this.supportsKzMesh_ = false;
         this.waitress = new Waitress<Events.ZclDataPayload, WaitressMatcher>(
             this.waitressValidator, this.waitressTimeoutFormatter
         );
@@ -140,6 +144,10 @@ class ZStackAdapter extends Adapter {
 
         const zStack3x0 = this.version.product === ZnpVersion.zStack3x0;
         this.supportsLED_ = !zStack3x0 || (zStack3x0 && parseInt(this.version.revision) >= 20210430);
+
+        // kz-mesh hook: one empty SREQ to find out whether the firmware has the
+        // Keus MT_UTIL extensions.
+        this.supportsKzMesh_ = await KzMesh.probeKzMeshSupport(this.znp);
 
         const concurrent = this.adapterOptions && this.adapterOptions.concurrent ?
             this.adapterOptions.concurrent :
@@ -778,21 +786,102 @@ class ZStackAdapter extends Adapter {
     }
 
     public async forceRemoveDevice(ieeeAddr: string): Promise<void> {
+        if (this.supportsKzMesh_) {
+            /**
+             * 0x65 already purges the APS link key and the TCLK NV entry, so the
+             * legacy removeLinkKey/secDeviceRemove follow-ups would come back with a
+             * non-SUCCESS status and znp.request would throw on an otherwise
+             * successful purge. Single call is both correct and complete here.
+             */
+            const status = await this.kzPurgeDevice(ieeeAddr);
+
+            if (status !== 0) {
+                /**
+                 * The caller removes the database row regardless, so a silent
+                 * failure here would leave the coordinator holding a device the
+                 * gateway has forgotten about.
+                 */
+                const message = `kzDeviceRemove('${ieeeAddr}') returned status ${status} - ` +
+                    `coordinator state may not be fully purged`;
+                debug(message);
+                if (this.logger) {
+                    this.logger.warn(message);
+                }
+            } else {
+                debug('kzDeviceRemove(%s) purged', ieeeAddr);
+            }
+
+            return;
+        }
+
         const resultRemoveLinkKey = await this.znp.request(Subsystem.ZDO, 'removeLinkKey', { ieeeaddr: ieeeAddr });
-        const resultAssocRemove = await this.znp.request(Subsystem.ZDO, 'secDeviceRemove', { extaddr: ieeeAddr });
-        const resultSecDeviceRemove = await this.znp.request(Subsystem.ZDO, 'assocRemove', { ieeeadr: ieeeAddr });
+        const resultSecDeviceRemove = await this.znp.request(Subsystem.ZDO, 'secDeviceRemove', { extaddr: ieeeAddr });
+        // assocRemove lives under UTIL, not ZDO - calling it on ZDO threw
+        // "Command 'assocRemove' from subsystem 'ZDO' not found" and the caller's
+        // catch swallowed it, so this step never actually ran.
+        const resultAssocRemove = await this.znp.request(Subsystem.UTIL, 'assocRemove', { ieeeadr: ieeeAddr });
 
         debug('Removed device link key ', resultRemoveLinkKey);
-        debug('Removed device association ', resultAssocRemove);
         debug('Removed device security info ', resultSecDeviceRemove);
+        debug('Removed device association ', resultAssocRemove);
     }
 
-    public async addOfflineDevice(ieeeAddr: string, nwkAddr: number, linkKey: Buffer): Promise<any> {
+    /**
+     * Keus mesh diagnostics - thin delegation to ../kz-mesh.
+     *
+     * Callers must gate on supportsKzMesh(); assertKzMesh below turns a missing
+     * capability into a clear error rather than empty data that would read as
+     * "nothing wrong".
+     */
 
-        return await this.adapterManager.addOfflineDevice(ieeeAddr.split("0x")[1], nwkAddr, linkKey)
-
+    public supportsKzMesh(): boolean {
+        return this.supportsKzMesh_;
     }
-    
+
+    public async kzGetMeshCapabilities(): Promise<KzMesh.KzMeshCapabilities> {
+        return {
+            supportsKzMesh: this.supportsKzMesh_,
+            znpVersion: this.version ? ZnpVersion[this.version.product] : 'unknown',
+            revision: this.version ? this.version.revision : '',
+        };
+    }
+
+    private assertKzMesh(): void {
+        if (!this.supportsKzMesh_) {
+            throw new Error('Coordinator firmware does not support the Keus mesh diagnostic commands');
+        }
+    }
+
+    public async kzGetDiagCounters(): Promise<KzMesh.KzDiagCounters> {
+        this.assertKzMesh();
+        return KzMesh.getDiagCounters(this.znp, this.queue);
+    }
+
+    public async kzGetNeighborTable(): Promise<KzMesh.KzNeighborTable> {
+        this.assertKzMesh();
+        return KzMesh.getNeighborTable(this.znp, this.queue);
+    }
+
+    public async kzGetRoutingTable(): Promise<KzMesh.KzRoutingEntry[]> {
+        this.assertKzMesh();
+        return KzMesh.getRoutingTable(this.znp, this.queue);
+    }
+
+    public async kzGetSourceRoutes(): Promise<KzMesh.KzSourceRoute[]> {
+        this.assertKzMesh();
+        return KzMesh.getSourceRoutes(this.znp, this.queue);
+    }
+
+    public async kzProvisionDevice(request: KzMesh.KzProvisionRequest): Promise<KzMesh.KzProvisionResult> {
+        this.assertKzMesh();
+        return KzMesh.provisionDevice(this.znp, this.queue, request);
+    }
+
+    public async kzPurgeDevice(ieeeAddr: string): Promise<number> {
+        this.assertKzMesh();
+        return KzMesh.purgeDevice(this.znp, this.queue, ieeeAddr);
+    }
+
     public async manualRestore(): Promise<void> {
 
         await this.adapterManager.manualRestore();

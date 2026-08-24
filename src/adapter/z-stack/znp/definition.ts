@@ -1,6 +1,9 @@
 import {Subsystem, Type as CommandType} from '../unpi/constants';
 import ParameterType from './parameterType';
 import {MtCmd} from './tstype';
+// kz-mesh hook: Keus mesh MT_UTIL commands, spread into UTIL below.
+// Imported from the file, not the module index, to avoid an import cycle.
+import {KzUtilCommands} from '../kz-mesh/definition';
 
 const Definition: {
     [s: number]: MtCmd[];
@@ -2760,7 +2763,12 @@ const Definition: {
             ],
         },
         {
-            // Custom command
+            /**
+             * Custom command. NON-DESTRUCTIVE, and it must stay that way: the
+             * send-recovery path in zStackAdapter pairs this with assocAdd (0x64)
+             * to work around a sleepy device whose parent moved. For a real
+             * removal use kzDeviceRemove (0x65) - assocAdd cannot undo that one.
+             */
             name: 'assocRemove',
             ID: 99,
             type: CommandType.SREQ,
@@ -2785,6 +2793,9 @@ const Definition: {
                 {name: 'status', parameterType: ParameterType.UINT8},
             ],
         },
+        // kz-mesh hook: the Keus mesh MT_UTIL commands (0x65 - 0x6A) are
+        // defined in ../kz-mesh/definition so they stay out of this table.
+        ...KzUtilCommands,
         {
             name: 'zclKeyEstInitEst',
             ID: 128,
