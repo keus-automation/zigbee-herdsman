@@ -42,6 +42,12 @@ class Device extends Entity {
     private _ieeeAddr: string;
     private _interviewCompleted: boolean;
     private _interviewing: boolean;
+    /**
+     * Set once the device has been removed (left the network, or was removed by
+     * the application). Terminal: a removed device must never be written back to
+     * the database, and nothing should keep talking to it.
+     */
+    private _removed: boolean;
     private _lastSeen: number;
     private _manufacturerID?: number;
     private _manufacturerName?: string;
@@ -65,6 +71,7 @@ class Device extends Entity {
     get endpoints(): Endpoint[] {return this._endpoints;}
     get interviewCompleted(): boolean {return this._interviewCompleted;}
     get interviewing(): boolean {return this._interviewing;}
+    get removed(): boolean {return this._removed;}
     get lastSeen(): number {return this._lastSeen;}
     get manufacturerID(): number {return this._manufacturerID;}
     set type(type: DeviceType) {this._type = type;}
@@ -154,6 +161,7 @@ class Device extends Entity {
         this._softwareBuildID = softwareBuildID;
         this._interviewCompleted = interviewCompleted;
         this._interviewing = false;
+        this._removed = false;
         this._skipDefaultResponse = false;
         this.meta = meta;
         this._lastSeen = lastSeen;
@@ -288,6 +296,19 @@ class Device extends Entity {
     }
 
     public save(): void {
+        /**
+         * Database.update() defaults to forceInsert, so saving a device whose row
+         * has already been deleted would RE-CREATE it. That is how a device that
+         * left mid-interview used to come back from the dead: removeFromDatabase()
+         * deleted the row, then the still-running interview's finally-block saved
+         * it again - leaving the in-memory map and the database out of step, and a
+         * later re-join creating a second row for the same address.
+         */
+        if (this._removed) {
+            debug.log(`Not saving '${this.ieeeAddr}': device has been removed`);
+            return;
+        }
+
         Entity.databases[this._dbInstKey].update(this.toDatabaseEntry());
     }
 
@@ -360,6 +381,20 @@ class Device extends Entity {
     /*
      * Zigbee functions
      */
+
+    /**
+     * Thrown when the device leaves (or is removed) while an interview is running.
+     * Without this the interview kept querying an absent device for the better
+     * part of a minute - node descriptor alone is 2 attempts x (10s wait + 3s
+     * route discovery + 10s wait).
+     */
+    private assertStillPresent(step: string): void {
+        if (this._removed) {
+            throw new Error(
+                `Interview aborted at '${step}': device '${this.ieeeAddr}' left the network`
+            );
+        }
+    }
 
     public async interview(): Promise<void> {
         if (this.interviewing) {
@@ -444,25 +479,29 @@ class Device extends Entity {
             debug.log(`Interview - got node descriptor for device '${this.ieeeAddr}'`);
         };
 
+        /**
+         * One attempt only. The adapter's nodeDescriptor() already retries once
+         * with a route discovery in between, so looping twice here made it four
+         * queries and ~46s of traffic for a device that is not answering. Retry
+         * policy belongs in one place.
+         */
+        this.assertStillPresent('node descriptor');
+
         let gotNodeDescriptor = false;
-        for (let attempt = 0; attempt < 2; attempt++) {
-            try {
-                await nodeDescriptorQuery();
-                gotNodeDescriptor = true;
-                break;
-            } catch (error) {
-                if (this.interviewQuirks()) {
-                    debug.log(`Interview - completed for device '${this.ieeeAddr}' because of quirks ('${error}')`);
-                    return;
-                } else {
-                    // Most of the times the first node descriptor query fails and the seconds one succeeds.
-                    debug.log(
-                        `Interview - node descriptor request failed for '${this.ieeeAddr}', attempt ${attempt + 1}`
-                    );
-                }
+        try {
+            await nodeDescriptorQuery();
+            gotNodeDescriptor = true;
+        } catch (error) {
+            if (this.interviewQuirks()) {
+                debug.log(`Interview - completed for device '${this.ieeeAddr}' because of quirks ('${error}')`);
+                return;
             }
+
+            debug.log(`Interview - node descriptor request failed for '${this.ieeeAddr}': ${error}`);
         }
+
         if (!gotNodeDescriptor) {
+            this.assertStillPresent('node descriptor');
             throw new Error(`Interview failed because can not get node descriptor ('${this.ieeeAddr}')`);
         }
 
@@ -471,6 +510,7 @@ class Device extends Entity {
         // this is keus specific manufacturer id, interview will be slighty modified for keus based devices
         if (keusEndPoint) {
             try {
+                this.assertStillPresent('keus simple descriptor');
                 let simpleDescriptor = await Entity.adapters[this._dbInstKey].simpleDescriptor(this.networkAddress, keusEndPoint);
                 let endpoint = Endpoint.create(
                     keusEndPoint,
@@ -563,6 +603,7 @@ class Device extends Entity {
         let activeEndpoints;
         for (let attempt = 0; attempt < 2; attempt++) {
             try {
+                this.assertStillPresent('active endpoints');
                 activeEndpoints = await Entity.adapters[this._dbInstKey].activeEndpoints(this.networkAddress);
                 break;
             } catch (error) {
@@ -586,6 +627,7 @@ class Device extends Entity {
         debug.log(`Interview - got active endpoints for device '${this.ieeeAddr}'`);
 
         for (const endpoint of this.endpoints) {
+            this.assertStillPresent('simple descriptor');
             const simpleDescriptor = await Entity.adapters[this._dbInstKey].simpleDescriptor(this.networkAddress, endpoint.ID);
             endpoint.profileID = simpleDescriptor.profileID;
             endpoint.deviceID = simpleDescriptor.deviceID;
@@ -690,6 +732,10 @@ class Device extends Entity {
 
     public async removeFromDatabase(): Promise<void> {
         Device.loadFromDatabaseIfNecessary(this._dbInstKey);
+
+        // Terminal, and set FIRST: anything still running against this device
+        // (an in-flight interview, a queued request) must see it immediately.
+        this._removed = true;
 
         for (const endpoint of this.endpoints) {
             endpoint.removeFromAllGroupsDatabase();

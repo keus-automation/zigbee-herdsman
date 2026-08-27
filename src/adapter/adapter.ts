@@ -171,9 +171,51 @@ abstract class Adapter extends events.EventEmitter {
 
     public abstract forceRemoveDevice(ieeeAddr: string): Promise<void>;
 
-    public async addOfflineDevice(ieeeAddr: string, nwkAddr: number, linkKey: Buffer): Promise<any> {}
 
     public async manualRestore(): Promise<void> {}
+
+    /**
+     * kz-mesh hook: Keus mesh diagnostics (MT_UTIL 0x65 - 0x6A).
+     *
+     * Implemented by the Z-Stack adapter (see ./z-stack/kz-mesh) against Keus
+     * mesh firmware. Every caller must gate on supportsKzMesh() first; the
+     * defaults below fail loudly rather than returning empty data that would
+     * read as "nothing wrong".
+     */
+
+    public supportsKzMesh(): boolean {
+        return false;
+    }
+
+    public async kzGetMeshCapabilities(): Promise<TsType.KzMeshCapabilities> {
+        return {supportsKzMesh: false, znpVersion: 'unknown', revision: ''};
+    }
+
+    public async kzGetDiagCounters(): Promise<TsType.KzDiagCounters> {
+        throw new Error('Keus mesh diagnostics are not supported by this adapter');
+    }
+
+    public async kzGetNeighborTable(): Promise<TsType.KzNeighborTable> {
+        throw new Error('Keus mesh diagnostics are not supported by this adapter');
+    }
+
+    public async kzGetRoutingTable(): Promise<TsType.KzRoutingEntry[]> {
+        throw new Error('Keus mesh diagnostics are not supported by this adapter');
+    }
+
+    public async kzGetSourceRoutes(): Promise<TsType.KzSourceRoute[]> {
+        throw new Error('Keus mesh diagnostics are not supported by this adapter');
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    public async kzProvisionDevice(request: TsType.KzProvisionRequest): Promise<TsType.KzProvisionResult> {
+        throw new Error('Keus mesh provisioning is not supported by this adapter');
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    public async kzPurgeDevice(ieeeAddr: string): Promise<number> {
+        throw new Error('Keus mesh device purge is not supported by this adapter');
+    }
 
     /**
      * ZCL

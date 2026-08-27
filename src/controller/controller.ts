@@ -1,6 +1,8 @@
 import events from 'events';
 import Database from './database';
 import { TsType as AdapterTsType, Adapter, Events as AdapterEvents } from '../adapter';
+// kz-mesh hook: Keus mesh provisioning helpers
+import * as KzMesh from '../adapter/z-stack/kz-mesh/provisioning';
 import { Entity, Device } from './model';
 import { ZclFrameConverter } from './helpers';
 import * as Events from './events';
@@ -403,77 +405,188 @@ class Controller extends events.EventEmitter {
         }
     }
 
-    public async addOfflineDevice(ieeeAddr: string, nwkAddr: number, linkKey: Buffer, deviceTypeId: number ): Promise<any> {
-        
-        // skipping adding to security manager, firmware update required for support
-        // let response = await this.adapter.addOfflineDevice(ieeeAddr, nwkAddr, linkKey);
+    /**
+     * Register a device on the coordinator without an interview, and return the
+     * join bundle for out-of-band delivery.
+     *
+     * On mesh firmware this goes through MT_UTIL 0x66, which allocates the short
+     * address itself (pass nwkAddr 0xFFFE, or omit it, to let it choose) and
+     * returns the live NWK key, key sequence number and frame counter. On older
+     * firmware it falls back to the secAddLinkKey path.
+     *
+     * deviceTypeId stays caller-supplied throughout: it is the endpoint's simple
+     * descriptor device id, which we never read because there is no interview.
+     * 0x66's devType is the logical Zigbee type (ZED vs router), a different field.
+     */
+    public async addOfflineDevice(
+        ieeeAddr: string, nwkAddr: number, linkKey: Buffer, deviceTypeId: number,
+        devType: number = KzMesh.KZ_DEV_TYPE.ROUTER, macCapabilities?: number,
+        force = false
+    ): Promise<any> {
 
-        let response:any = { success: true };
+        /**
+         * Rejected outright on incompatible firmware rather than falling back.
+         * Only 0x66 can register the device on the coordinator AND return the
+         * live key material the device needs to join; the older path could not,
+         * so "succeeding" there produced a device that was never really paired.
+         */
+        if (!this.adapter.supportsKzMesh()) {
+            debug.error(`Cannot provision '${ieeeAddr}': ZNP firmware has no device provisioning support`);
+            return {
+                success: false,
+                error: `Coordinator firmware does not support device provisioning (MT_UTIL 0x66). ` +
+                    `Update the ZNP firmware before pairing devices out of band.`,
+            };
+        }
 
-        if(response.success)
-        {
-            try
-            {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        let response: any = {success: true};
 
-                let device = Device.byIeeeAddr(this.dbInstKey, ieeeAddr);
-                if (!device) {
-                    debug.log(`New device '${ieeeAddr}' added offline`);
-                    debug.log(`Creating device '${ieeeAddr}'`);
-                    device = Device.create(
-                        'Router', ieeeAddr, nwkAddr, 43690,
-                        undefined, undefined, undefined, true, 
-                        [{ID: 15, profileID: 1,  deviceID: deviceTypeId, inputClusters:[2849], outputClusters : [2849]}]
-                        ,this.dbInstKey, true
-                    );
+        /**
+         * force = purge first, then provision. That clears the old APS key, TCLK
+         * entry, bindings and routes, and lets the coordinator hand out a fresh
+         * short address - the clean way to re-commission a device.
+         *
+         * Without force we simply re-provision. Because reqShortAddr is left as
+         * auto-allocate, a device that is already registered keeps its existing
+         * address instead of colliding with a newly requested one.
+         */
+        if (force) {
+            const purgeStatus = await this.adapter.kzPurgeDevice(ieeeAddr);
+            debug.log(`Force provisioning '${ieeeAddr}': purge returned ${purgeStatus}`);
+        }
 
-                    const deviceInterviewPayload: Events.DeviceInterviewPayload = { status: 'successful', device };
-                    this.emit(Events.Events.deviceInterview, deviceInterviewPayload);
-                }
-                else if (device.networkAddress !== nwkAddr) {
-                    debug.log(
-                        `Device '${ieeeAddr}' is already in database with different networkAddress, ` +
-                        `updating networkAddress`
-                    );
-                    device.networkAddress = nwkAddr;
-                    device.save();
+        // kz-mesh hook: provisioning helpers live in ../adapter/z-stack/kz-mesh
+        const provisionResult: AdapterTsType.KzProvisionResult = await this.adapter.kzProvisionDevice({
+            ieeeAddr,
+            devType,
+            // Drives the child relation the coordinator records and, for a sleepy
+            // device, when its ED aging timer starts.
+            macCapabilities: macCapabilities === undefined
+                ? KzMesh.defaultMacCapabilities(devType)
+                : macCapabilities,
+            // undefined => 0xFFFE, i.e. let the coordinator allocate
+            reqShortAddr: nwkAddr,
+            apsLinkKey: linkKey,
+        });
 
-                    const eventData: Events.DeviceRejoinedPayload = {device, networkAddressChanged: true};
-                    this.emit(Events.Events.deviceRejoined, eventData);
-                }
+        if (!provisionResult.success) {
+            debug.error(`Provisioning '${ieeeAddr}' failed with status ${provisionResult.status}`);
+            return {
+                success: false,
+                error: KzMesh.provisionFailureMessage(ieeeAddr, provisionResult.status),
+            };
+        }
 
-                console.log('Offline addition of ' + ieeeAddr + " successfull ")
-                        
-                let networkParameters = await this.adapter.getNetworkParameters();
-                let networkOptions = this.adapter.getNwkOptions();
-                
-                response = { 
-                    ...response,
-                    deviceNwkInfo: {
-                        deviceId: ieeeAddr,
-                        shortaddr: nwkAddr,
-                        linkKey: Array.from(linkKey),
-                        panId: networkParameters.panID,
-                        channel: networkParameters.channel,
-                        extPanId: networkParameters.extendedPanIDArray,
-                        nwkKey: networkOptions.networkKey 
-                    }
-                }
-                
-                debug.log(`Device added offline '${ieeeAddr}'`);
-            }
-            catch(err)
-            {
-                let errMessage = err instanceof Error ? err.message : err;
-                debug.error(`Device adding offline failed '${ieeeAddr}' with error '${errMessage}'`);
-                response = { success: false, error: `Device adding offline failed with error '${errMessage}'` };
+        /**
+         * We asked for an explicit APS link key, so the echo must contain it. A
+         * zero echo would mean the device is handed a key it can never join with,
+         * and that is far better caught here than in the field.
+         */
+        if (linkKey && linkKey.some((byte) => byte !== 0)) {
+            const echo = provisionResult.apsLinkKeyEcho || [];
+            if (!echo.length || echo.every((byte) => byte === 0)) {
+                debug.error(`Provisioning '${ieeeAddr}' returned an all-zero link key echo`);
+                return {
+                    success: false,
+                    error: `Coordinator accepted provisioning of '${ieeeAddr}' but echoed an all-zero ` +
+                        `APS link key. Refusing to hand the device unusable key material.`,
+                };
             }
         }
-        else 
+
+        const assignedNwkAddr = provisionResult.nwkAddr;
+
+        try
         {
-            debug.log(`Device adding offline failed '${ieeeAddr}'`);
+            let device = Device.byIeeeAddr(this.dbInstKey, ieeeAddr);
+            if (!device) {
+                debug.log(`New device '${ieeeAddr}' added offline`);
+                debug.log(`Creating device '${ieeeAddr}'`);
+                device = Device.create(
+                    KzMesh.deviceTypeForKzDevType(devType), ieeeAddr, assignedNwkAddr, 43690,
+                    undefined, undefined, undefined, true,
+                    [{ID: 15, profileID: 1,  deviceID: deviceTypeId, inputClusters:[2849], outputClusters : [2849]}]
+                    ,this.dbInstKey, true
+                );
+
+                const deviceInterviewPayload: Events.DeviceInterviewPayload = { status: 'successful', device };
+                this.emit(Events.Events.deviceInterview, deviceInterviewPayload);
+            }
+            else if (device.networkAddress !== assignedNwkAddr) {
+                debug.log(
+                    `Device '${ieeeAddr}' is already in database with different networkAddress, ` +
+                    `updating networkAddress`
+                );
+                device.networkAddress = assignedNwkAddr;
+                device.save();
+
+                const eventData: Events.DeviceRejoinedPayload = {device, networkAddressChanged: true};
+                this.emit(Events.Events.deviceRejoined, eventData);
+            }
+
+            debug.log('Offline addition of ' + ieeeAddr + " successful");
+
+            // Live values - the device must be re-provisioned after any NWK key
+            // rotation, or it will join with a stale key.
+            response = {
+                ...response,
+                deviceNwkInfo: KzMesh.buildDeviceNwkInfo(ieeeAddr, provisionResult)
+            };
+
+            debug.log(`Device added offline '${ieeeAddr}'`);
+        }
+        catch(err)
+        {
+            let errMessage = err instanceof Error ? err.message : err;
+            debug.error(`Device adding offline failed '${ieeeAddr}' with error '${errMessage}'`);
+            response = { success: false, error: `Device adding offline failed with error '${errMessage}'` };
         }
 
         return response;
+    }
+
+    /**
+     * Keus mesh diagnostics. Callers should check supportsKzMesh() first; the
+     * adapter throws rather than returning empty data when unsupported.
+     */
+
+    public supportsKzMesh(): boolean {
+        return this.adapter.supportsKzMesh();
+    }
+
+    public async kzGetMeshCapabilities(): Promise<AdapterTsType.KzMeshCapabilities> {
+        return this.adapter.kzGetMeshCapabilities();
+    }
+
+    public async kzGetDiagCounters(): Promise<AdapterTsType.KzDiagCounters> {
+        return this.adapter.kzGetDiagCounters();
+    }
+
+    public async kzGetNeighborTable(): Promise<AdapterTsType.KzNeighborTable> {
+        return this.adapter.kzGetNeighborTable();
+    }
+
+    public async kzGetRoutingTable(): Promise<AdapterTsType.KzRoutingEntry[]> {
+        return this.adapter.kzGetRoutingTable();
+    }
+
+    public async kzGetSourceRoutes(): Promise<AdapterTsType.KzSourceRoute[]> {
+        return this.adapter.kzGetSourceRoutes();
+    }
+
+    public async kzProvisionDevice(
+        request: AdapterTsType.KzProvisionRequest
+    ): Promise<AdapterTsType.KzProvisionResult> {
+        return this.adapter.kzProvisionDevice(request);
+    }
+
+    /**
+     * Full coordinator-side purge (0x65). Leaves the herdsman database alone -
+     * use forceRemoveDevice to remove a device properly.
+     */
+    public async kzPurgeDevice(ieeeAddr: string): Promise<number> {
+        return this.adapter.kzPurgeDevice(ieeeAddr);
     }
 
     public async manualBackup() {
@@ -596,12 +709,27 @@ class Controller extends events.EventEmitter {
     }
 
     private onDeviceLeave(payload: AdapterEvents.DeviceLeavePayload): void {
-        debug.log(`Device leave '${payload.ieeeAddr}'`);
+        debug.log(`Device leave '${payload.ieeeAddr}' (rejoin: ${payload.rejoin})`);
 
         const device = Device.byIeeeAddr(this.dbInstKey, payload.ieeeAddr);
+
         if (device) {
-            debug.log(`Removing device from database '${payload.ieeeAddr}'`);
-            device.removeFromDatabase();
+            if (payload.rejoin) {
+                /**
+                 * The device is announcing that it is coming straight back - this
+                 * is what a rejoin or a router-driven move looks like. Deleting
+                 * the row here would throw away its endpoints, bindings and group
+                 * membership for a device that has not actually gone anywhere.
+                 *
+                 * Any in-flight interview is still aborted: whatever it was told
+                 * before the rejoin cannot be trusted, and it will be
+                 * re-interviewed if it comes back not yet interviewed.
+                 */
+                debug.log(`Keeping '${payload.ieeeAddr}' in database: leave was a rejoin`);
+            } else {
+                debug.log(`Removing device from database '${payload.ieeeAddr}'`);
+                device.removeFromDatabase();
+            }
         }
 
         const data: Events.DeviceLeavePayload = {
