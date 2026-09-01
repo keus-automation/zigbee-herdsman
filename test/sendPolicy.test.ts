@@ -215,3 +215,46 @@ describe('send policy', () => {
         });
     });
 });
+
+/**
+ * Regression cover for the coordinator-level failures seen in the 2026-08-27
+ * gateway log, where 20 sends failed with "SRSP - AF - dataRequest after 6000ms"
+ * and 6 more with INVALID_PARAM. Both threw out of dataRequest, which used to
+ * bypass the ladder entirely.
+ */
+describe('SendPolicy - adapter failures', () => {
+    const options = SendPolicy.DEFAULT_SEND_POLICY;
+    const state = (attempt: number): SendPolicy.SendAttemptState => ({
+        attempt, routeActionTaken: false, addressChecked: false, msRemaining: 20000,
+    });
+
+    it('never retries an adapter failure', () => {
+        for (const attempt of [1, 2, 3, 4]) {
+            const decision = SendPolicy.decideRecovery(
+                SendPolicy.SendFailure.ADAPTER, state(attempt), options, () => 0.5
+            );
+            expect(decision.action).toBe('give-up');
+            expect(decision.waitMs).toBe(0);
+        }
+    });
+
+    it('never does route work for an adapter failure - the frame never left the chip', () => {
+        for (const attempt of [1, 2, 3, 4]) {
+            const decision = SendPolicy.decideRecovery(
+                SendPolicy.SendFailure.ADAPTER, state(attempt), options, () => 0.5
+            );
+            expect(decision.action).not.toBe('discover-route');
+            expect(decision.action).not.toBe('check-address');
+        }
+    });
+
+    it('gives up regardless of remaining deadline', () => {
+        const decision = SendPolicy.decideRecovery(
+            SendPolicy.SendFailure.ADAPTER,
+            {attempt: 1, routeActionTaken: false, addressChecked: false, msRemaining: 19000},
+            options, () => 0.5
+        );
+        expect(decision.action).toBe('give-up');
+        expect(decision.reason).toContain('did not accept');
+    });
+});

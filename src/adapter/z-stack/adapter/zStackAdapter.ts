@@ -26,6 +26,16 @@ const Subsystem = UnpiConstants.Subsystem;
 const Type = UnpiConstants.Type;
 const {ZnpCommandStatus, AddressMode} = Constants.COMMON;
 
+/**
+ * Coordinator-level failures required before recovery is requested.
+ *
+ * One is not enough to justify the response: recovery power-cycles the chip,
+ * which takes the whole mesh down for ~25s, so a single transient stall would
+ * cause a worse outage than the symptom. Two independent failures is the
+ * confirmation - cheaper and simpler than probing the chip to double-check.
+ */
+const ADAPTER_FAILURES_BEFORE_RECOVERY = 2;
+
 const DataConfirmTimeout = 9999; // Not an actual code
 const DataConfirmErrorCodeLookup: {[k: number]: string} = {
     [DataConfirmTimeout]: 'Timeout',
@@ -65,6 +75,16 @@ class ZStackAdapter extends Adapter {
         product: number; transportrev: number; majorrel: number; minorrel: number; maintrel: number; revision: string;
     };
     private closing: boolean;
+    /**
+     * True once start() has completed successfully. Requests made while the stack
+     * is coming up, or after a start that failed, have their own retries and must
+     * never be read as an adapter fault.
+     */
+    private initialized_: boolean;
+    /** Set once a failure has been reported, so we report exactly once per start. */
+    private failureReported_: boolean;
+    /** Coordinator-level failures seen since the last success. */
+    private adapterFailures_: number;
     private queue: Queue;
     private supportsLED_: boolean;
     private supportsKzMesh_: boolean;
@@ -87,6 +107,9 @@ class ZStackAdapter extends Adapter {
         this.interpanLock = false;
         this.interpanEndpointRegistered = false;
         this.closing = false;
+        this.initialized_ = false;
+        this.failureReported_ = false;
+        this.adapterFailures_ = 0;
         this.supportsKzMesh_ = false;
         this.deviceFailures = new SendPolicy.DeviceFailureTracker();
         this.waitress = new Waitress<Events.ZclDataPayload, WaitressMatcher>(
@@ -100,8 +123,12 @@ class ZStackAdapter extends Adapter {
     public async pingZNPHost(): Promise<boolean> {
         try {
             await this.znp.request(Subsystem.SYS, 'ping', {capabilities: 1});
+            this.adapterFailures_ = 0;
             return true;
         } catch (e) {
+            // A ping is answered locally by the chip and involves no radio, so a
+            // failure here means the MT layer itself has stopped responding.
+            this.reportAdapterFailure('ping-failed', `the coordinator did not answer SYS ping (${e})`);
             return false;
         }
     }
@@ -172,11 +199,24 @@ class ZStackAdapter extends Adapter {
             },
             this.logger
         );
-        return this.adapterManager.start();
+        const startResult = await this.adapterManager.start();
+
+        /**
+         * Only a SUCCESSFUL start arms failure reporting. If start() throws, the
+         * bring-up path retries on its own, and reporting failures underneath
+         * that would have the host restarting a chip that is already being
+         * restarted.
+         */
+        this.initialized_ = true;
+        this.failureReported_ = false;
+        this.adapterFailures_ = 0;
+
+        return startResult;
     }
 
     public async stop(): Promise<void> {
         this.closing = true;
+        this.initialized_ = false;
         await this.znp.close();
     }
 
@@ -507,12 +547,41 @@ class ZStackAdapter extends Adapter {
                 );
             }
 
-            const confirmStatus = await this.dataRequest(
-                networkAddress, endpoint, sourceEndpoint, zclFrame.Cluster.ID, Constants.AF.DEFAULT_RADIUS,
-                zclFrame.toBuffer(), timeout
-            );
+            /**
+             * dataRequest throws for coordinator-level failures - a rejected SREQ
+             * (INVALID_PARAM when the AF endpoint is not registered) or no SRSP at
+             * all. Those used to escape this loop entirely, which meant no retry,
+             * no failure recorded against the device, and a leaked response
+             * waitress that stayed armed for the full timeout. They are now
+             * classified and fed through the same ladder as every other failure.
+             */
+            let confirmStatus: number = null;
+            let adapterError: Error = null;
 
-            if (confirmStatus === ZnpCommandStatus.SUCCESS) {
+            try {
+                confirmStatus = await this.dataRequest(
+                    networkAddress, endpoint, sourceEndpoint, zclFrame.Cluster.ID, Constants.AF.DEFAULT_RADIUS,
+                    zclFrame.toBuffer(), timeout
+                );
+            } catch (error) {
+                adapterError = error;
+            }
+
+            if (adapterError !== null) {
+                if (response !== null) response.cancel();
+                lastFailure = SendPolicy.SendFailure.ADAPTER;
+                lastConfirmStatus = null;
+                // keeps the original message, which names the SREQ and the timeout
+                lastResponseError = adapterError;
+                debug(
+                    'send %s: coordinator did not accept the request (attempt %i): %s',
+                    ieeeAddr, state.attempt, adapterError
+                );
+                this.noteAdapterFailure(adapterError);
+            } else if (confirmStatus === ZnpCommandStatus.SUCCESS) {
+                // The coordinator is demonstrably healthy.
+                this.adapterFailures_ = 0;
+
                 if (response === null) {
                     this.deviceFailures.recordSuccess(trackerKey);
                     return;
@@ -571,13 +640,90 @@ class ZStackAdapter extends Adapter {
         }
     }
 
+    /**
+     * Classifies a coordinator-level send failure.
+     *
+     * Both shapes mean the frame never left the chip, so neither says anything
+     * about the mesh or the target device:
+     *
+     *  - INVALID_PARAM on a well-formed MT request means the source endpoint is
+     *    not registered, i.e. the chip restarted and was never reconfigured.
+     *  - No SRSP at all means the MT layer stopped answering. An SRSP is a local
+     *    acknowledgement involving no radio, so its absence is never normal.
+     */
+    private noteAdapterFailure(error: Error): void {
+        if (String(error).includes('INVALID_PARAM')) {
+            this.reportAdapterFailure(
+                'invalid-param',
+                'the coordinator rejected an MT request with INVALID_PARAM; its endpoints are not registered'
+            );
+            return;
+        }
+
+        this.reportAdapterFailure('timeout', `the coordinator did not answer an MT request (${error})`);
+    }
+
+    /**
+     * Records a coordinator-level failure and, on the second one, reports it.
+     *
+     * Only called for states we can positively identify as unrecoverable from
+     * here. Nothing in the adapter can repair them - the endpoint registrations
+     * and the coordinator startup handshake both live in adapterManager.start(),
+     * and a chip that has stopped servicing its UART needs its power line driven,
+     * which only the host can do.
+     *
+     * Nothing is reported until the controller has started SUCCESSFULLY. While
+     * the stack is still coming up - or after a start that failed - the bring-up
+     * path is already retrying, and restarting underneath it would fight that.
+     * Latched after reporting, so a burst reports once.
+     */
+    private reportAdapterFailure(reason: Events.AdapterFailurePayload['reason'], detail: string): void {
+        if (!this.initialized_ || this.failureReported_ || this.closing) {
+            return;
+        }
+
+        this.adapterFailures_++;
+
+        if (this.adapterFailures_ < ADAPTER_FAILURES_BEFORE_RECOVERY) {
+            debug(
+                'Adapter failure %i of %i (%s): %s',
+                this.adapterFailures_, ADAPTER_FAILURES_BEFORE_RECOVERY, reason, detail
+            );
+            return;
+        }
+
+        this.failureReported_ = true;
+        const message = `Adapter needs recovery (${reason}): ${detail}`;
+        debug(message);
+
+        if (this.logger) {
+            this.logger.error(message);
+        }
+
+        this.emit(Events.Events.adapterFailure, {
+            reason,
+            detail,
+            failures: this.adapterFailures_,
+        });
+    }
+
     /** Records the failure against the device and throws the appropriate error. */
     private throwSendFailure(
         ieeeAddr: string, trackerKey: string,
         failure: SendPolicy.SendFailure, confirmStatus: number, responseError?: Error
     ): never {
-        const consecutive = this.deviceFailures.recordFailure(trackerKey);
-        debug('send %s: giving up after %i consecutive failures', ieeeAddr, consecutive);
+        /**
+         * An ADAPTER failure says nothing about the device - the frame never left
+         * the coordinator. Counting it against the device would put every device
+         * in the network into failure cooldown the moment the chip stops
+         * answering, and leave them there for a minute after it recovers.
+         */
+        if (failure === SendPolicy.SendFailure.ADAPTER) {
+            debug('send %s: giving up, coordinator did not accept the request', ieeeAddr);
+        } else {
+            const consecutive = this.deviceFailures.recordFailure(trackerKey);
+            debug('send %s: giving up after %i consecutive failures', ieeeAddr, consecutive);
+        }
 
         if (confirmStatus !== null) {
             throw new DataConfirmError(confirmStatus);

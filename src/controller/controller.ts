@@ -162,6 +162,7 @@ class Controller extends events.EventEmitter {
         this.adapter.on(AdapterEvents.Events.deviceAnnounce, this.onDeviceAnnounce.bind(this));
         this.adapter.on(AdapterEvents.Events.deviceLeave, this.onDeviceLeave.bind(this));
         this.adapter.on(AdapterEvents.Events.networkAddress, this.onNetworkAddress.bind(this));
+        this.adapter.on(AdapterEvents.Events.adapterFailure, this.onAdapterFailure.bind(this));
 
         if (startResult === 'reset') {
             if (this.options.databaseBackupPath && fs.existsSync(this.options.databasePath)) {
@@ -738,6 +739,21 @@ class Controller extends events.EventEmitter {
             rejoin: payload.rejoin
         };
         this.emit(Events.Events.deviceLeave, data);
+    }
+
+    /**
+     * The adapter has reported a coordinator it cannot use. Deliberately no
+     * stop() call here: the host owns the response (power-cycling the chip is not
+     * something this layer can do), so it is passed straight through with enough
+     * context to act on.
+     */
+    private onAdapterFailure(payload: AdapterEvents.AdapterFailurePayload): void {
+        debug.log(`Adapter failure: ${payload.reason} - ${payload.detail}`);
+
+        this.emit(Events.Events.adapterFailure, {
+            ...payload,
+            dbInstKey: this.dbInstKey,
+        });
     }
 
     private async onAdapterDisconnected(): Promise<void> {

@@ -43,6 +43,13 @@ export enum SendFailure {
     CONFIRM_TIMEOUT = 'confirm-timeout',
     /** the frame was confirmed but the device never answered */
     RESPONSE_TIMEOUT = 'response-timeout',
+    /**
+     * The coordinator itself never accepted the frame: the SREQ was rejected
+     * (e.g. INVALID_PARAM because the AF endpoint is not registered) or no SRSP
+     * came back at all. Nothing about the mesh is implicated - the frame never
+     * left the chip - so route work and address checks are all pointless here.
+     */
+    ADAPTER = 'adapter',
     /** anything not worth retrying */
     FATAL = 'fatal',
 }
@@ -166,6 +173,17 @@ export function decideRecovery(
      * outcome, so the frame may well have gone out - resending risks delivering a
      * command twice, which for something like a toggle is worse than failing.
      */
+    /**
+     * The chip did not take the frame, so no retry. Resending cannot help: the
+     * coordinator is not going to start accepting mid-command, and each attempt
+     * costs a full SRSP timeout while holding a queue slot - which turns one
+     * wedged chip into a pile-up of slow commands. Recovery is the host's job,
+     * driven by the adapter failure event, not the send ladder's.
+     */
+    if (failure === SendFailure.ADAPTER) {
+        return {action: 'give-up', waitMs: 0, reason: 'coordinator did not accept the request'};
+    }
+
     if (failure === SendFailure.CONFIRM_TIMEOUT) {
         return {
             action: 'give-up', waitMs: 0,
