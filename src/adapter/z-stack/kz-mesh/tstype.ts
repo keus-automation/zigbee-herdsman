@@ -41,6 +41,14 @@ export interface KzDiagCounters {
     heapFragMin: number;
     nwkDataBufHigh: number;
     neighborCntHigh: number;
+    /**
+     * mesh-10 N3. Always 0 on a ZNP; on routers/ZEDs (0x27) non-zero means the
+     * device booted with a null NWK key and was undecryptable until repaired.
+     * Optional: older firmware does not send it.
+     */
+    nwkKeyNullLatch?: number;
+    /** Counters beyond the names this build knows - newer firmware. Wire order. */
+    unknown?: number[];
 }
 
 /**

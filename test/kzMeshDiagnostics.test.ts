@@ -2,6 +2,8 @@ import "regenerator-runtime/runtime";
 import {ZpiObject} from '../src/adapter/z-stack/znp';
 import {Frame as UnpiFrame} from '../src/adapter/z-stack/unpi';
 import {Type, Subsystem} from '../src/adapter/z-stack/unpi/constants';
+import {decodeDiagCounters} from '../src/adapter/z-stack/kz-mesh/commands';
+import {KZ_DIAG_COUNTER_FIELDS} from '../src/adapter/z-stack/kz-mesh/definition';
 
 /**
  * Wire-level checks for the Keus mesh diagnostic commands (host_integration.md,
@@ -14,14 +16,17 @@ const srsp = (commandID: number, data: Buffer): ZpiObject =>
 
 describe('Keus mesh diagnostics', () => {
     describe('0x67 kzGetDiagCounters', () => {
-        it('decodes all 22 counters in struct order', () => {
-            // 22 uint16 LE, value == index so any offset slip is obvious
-            const data = Buffer.alloc(44);
-            for (let i = 0; i < 22; i++) {
-                data.writeUInt16LE(i, i * 2);
-            }
+        /** N uint16 LE, value == index so any offset slip is obvious. */
+        const counters = (n: number): Buffer => {
+            const data = Buffer.alloc(n * 2);
+            for (let i = 0; i < n; i++) data.writeUInt16LE(i, i * 2);
+            return data;
+        };
+        const decode = (n: number) => decodeDiagCounters(srsp(103, counters(n)).payload.counters as number[]);
 
-            const payload = srsp(103, data).payload;
+        it('decodes all 23 counters in struct order', () => {
+            expect(KZ_DIAG_COUNTER_FIELDS).toHaveLength(23);
+            const payload = decode(23);
 
             expect(payload.afInDropNoMemHuge).toBe(0);
             expect(payload.afInDropNoMemResp).toBe(1);
@@ -33,11 +38,38 @@ describe('Keus mesh diagnostics', () => {
             expect(payload.srcRtFail).toBe(13);
             expect(payload.srcRtFlush).toBe(14);
             expect(payload.nextHopInvalidate).toBe(15);
-            // the four trailing watermarks
+            // the four watermarks
             expect(payload.heapFreeMin).toBe(18);
             expect(payload.heapFragMin).toBe(19);
             expect(payload.nwkDataBufHigh).toBe(20);
             expect(payload.neighborCntHigh).toBe(21);
+            // mesh-10 N3, appended
+            expect(payload.nwkKeyNullLatch).toBe(22);
+            expect(payload.unknown).toBeUndefined();
+        });
+
+        /**
+         * Append-only contract (06a A3). A coordinator on older firmware sends
+         * 22 fields. This must NOT throw: a throw here fails the capability probe
+         * and silently disables every mesh diagnostic on that gateway.
+         */
+        it('tolerates an older, shorter response', () => {
+            const payload = decode(22);
+            expect(payload.neighborCntHigh).toBe(21);
+            expect(payload.nwkKeyNullLatch).toBeUndefined();
+            expect(payload.unknown).toBeUndefined();
+        });
+
+        it('tolerates a newer, longer response and keeps the extras', () => {
+            const payload = decode(25);
+            expect(payload.nwkKeyNullLatch).toBe(22);
+            expect(payload.unknown).toEqual([23, 24]);
+        });
+
+        it('ignores a trailing odd byte rather than throwing', () => {
+            const data = Buffer.concat([counters(23), Buffer.from([0xAA])]);
+            const values = srsp(103, data).payload.counters as number[];
+            expect(values).toHaveLength(23);
         });
     });
 

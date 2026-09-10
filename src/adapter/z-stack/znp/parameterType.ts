@@ -26,6 +26,8 @@ enum ParameterType {
     LIST_KZ_NEIGHBOR = 19,
     LIST_KZ_RTG = 20,
     LIST_KZ_SRC_RTG = 21,
+    /** kz-mesh hook: uint16s to end of frame - the append-only 0x67 counter block. */
+    LIST_KZ_DIAG_COUNTERS = 22,
 }
 
 export default ParameterType;

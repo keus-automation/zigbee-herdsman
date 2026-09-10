@@ -26,6 +26,7 @@ import {
     KZ_SRC_RTG_DONE,
     KZ_AUTO_SHORT_ADDR,
     KZ_PROBE_TIMEOUT_MS,
+    KZ_DIAG_COUNTER_FIELDS,
 } from './definition';
 
 const debug = Debug('zigbee-herdsman:adapter:zStack:kzMesh');
@@ -52,10 +53,30 @@ export async function probeKzMeshSupport(znp: Znp, timeoutMs = KZ_PROBE_TIMEOUT_
     }
 }
 
+/**
+ * Names the raw uint16 list from 0x67. Fields the firmware did not send are
+ * left undefined; fields this build has no name for are kept in `unknown`, so a
+ * longer response is never silently truncated and a shorter one never throws.
+ */
+export function decodeDiagCounters(values: number[]): KzDiagCounters {
+    const out: Record<string, number | number[]> = {};
+    const known = KZ_DIAG_COUNTER_FIELDS.length;
+
+    values.slice(0, known).forEach((value, i) => {
+        out[KZ_DIAG_COUNTER_FIELDS[i]] = value;
+    });
+
+    if (values.length > known) {
+        out.unknown = values.slice(known);
+    }
+
+    return out as unknown as KzDiagCounters;
+}
+
 export async function getDiagCounters(znp: Znp, queue: Queue): Promise<KzDiagCounters> {
     return queue.execute<KzDiagCounters>(async () => {
         const result = await znp.request(Subsystem.UTIL, 'kzGetDiagCounters', {});
-        return result.payload as unknown as KzDiagCounters;
+        return decodeDiagCounters((result.payload.counters as number[]) || []);
     });
 }
 

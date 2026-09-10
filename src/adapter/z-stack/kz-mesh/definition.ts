@@ -16,7 +16,7 @@ export const KzCommandIds = {
     kzDeviceRemove: 101,
     /** 0x66 - register a device and return the join bundle. */
     kzDeviceProvision: 102,
-    /** 0x67 - 22 free-running uint16 counters. */
+    /** 0x67 - append-only block of free-running uint16 counters (23 as of mesh-10). */
     kzGetDiagCounters: 103,
     /** 0x68 - paged neighbour table. */
     kzGetNeighborTable: 104,
@@ -43,6 +43,22 @@ export const KZ_AUTO_SHORT_ADDR = 0xFFFE;
  * all, and the default 6s SREQ timeout would then be charged to every boot.
  */
 export const KZ_PROBE_TIMEOUT_MS = 1000;
+
+/**
+ * 0x67 counter names in wire order (Plan 06a A3). Append-only: add new names at
+ * the END. Block 1 = kz_znp_stats (5), block 2 = kzDiagNwk_t (18).
+ */
+export const KZ_DIAG_COUNTER_FIELDS: readonly string[] = [
+    // Block 1 - kz_znp_stats
+    'afInDropNoMemHuge', 'afInDropNoMemResp', 'bcastTableFullDrop', 'nwkReplayDrop', 'afGroupFallbackNoEp',
+    // Block 2 - kz_diag_nwk
+    'annceRxTotal', 'annceAssocPurge', 'annceRtgPurge', 'annceNbrPurge',
+    'parentAnnceTx', 'parentAnnceRspRx', 'parentAnnceChildRemoved', 'parentAnnceClaimSent',
+    'srcRtFail', 'srcRtFlush', 'nextHopInvalidate', 'zedCleanupByRelay', 'indirectExpired',
+    'heapFreeMin', 'heapFragMin', 'nwkDataBufHigh', 'neighborCntHigh',
+    // mesh-10 N3 - always 0 on a ZNP, meaningful on routers/ZEDs via 0x27
+    'nwkKeyNullLatch',
+];
 
 export const KzUtilCommands: MtCmd[] = [
     {
@@ -97,39 +113,24 @@ export const KzUtilCommands: MtCmd[] = [
     },
     {
         /**
-         * 22 free-running, wrapping uint16 counters. Only the delta between
-         * successive reads is meaningful; the four trailing gauges are
-         * min/max-ever watermarks and must be read raw, never diffed.
+         * Append-only block of free-running, wrapping uint16 counters - 23 as of
+         * mesh-10 N3. Only the delta between successive reads is meaningful; the
+         * heap/buffer/neighbour gauges are min/max-ever watermarks and must be
+         * read raw, never diffed.
+         *
+         * Decoded as "all remaining uint16s" and named by KZ_DIAG_COUNTER_FIELDS
+         * rather than as a fixed field list, because the firmware contract is
+         * that new counters are APPENDED. A fixed list would throw on an older
+         * coordinator (too short) and silently ignore a newer one (too long) -
+         * and a throw here fails the capability probe, turning every mesh
+         * diagnostic off for that gateway.
          */
         name: 'kzGetDiagCounters',
         ID: KzCommandIds.kzGetDiagCounters,
         type: CommandType.SREQ,
         request: [],
         response: [
-            // Block 1 - kz_znp_stats
-            {name: 'afInDropNoMemHuge', parameterType: ParameterType.UINT16},
-            {name: 'afInDropNoMemResp', parameterType: ParameterType.UINT16},
-            {name: 'bcastTableFullDrop', parameterType: ParameterType.UINT16},
-            {name: 'nwkReplayDrop', parameterType: ParameterType.UINT16},
-            {name: 'afGroupFallbackNoEp', parameterType: ParameterType.UINT16},
-            // Block 2 - kz_diag_nwk
-            {name: 'annceRxTotal', parameterType: ParameterType.UINT16},
-            {name: 'annceAssocPurge', parameterType: ParameterType.UINT16},
-            {name: 'annceRtgPurge', parameterType: ParameterType.UINT16},
-            {name: 'annceNbrPurge', parameterType: ParameterType.UINT16},
-            {name: 'parentAnnceTx', parameterType: ParameterType.UINT16},
-            {name: 'parentAnnceRspRx', parameterType: ParameterType.UINT16},
-            {name: 'parentAnnceChildRemoved', parameterType: ParameterType.UINT16},
-            {name: 'parentAnnceClaimSent', parameterType: ParameterType.UINT16},
-            {name: 'srcRtFail', parameterType: ParameterType.UINT16},
-            {name: 'srcRtFlush', parameterType: ParameterType.UINT16},
-            {name: 'nextHopInvalidate', parameterType: ParameterType.UINT16},
-            {name: 'zedCleanupByRelay', parameterType: ParameterType.UINT16},
-            {name: 'indirectExpired', parameterType: ParameterType.UINT16},
-            {name: 'heapFreeMin', parameterType: ParameterType.UINT16},
-            {name: 'heapFragMin', parameterType: ParameterType.UINT16},
-            {name: 'nwkDataBufHigh', parameterType: ParameterType.UINT16},
-            {name: 'neighborCntHigh', parameterType: ParameterType.UINT16},
+            {name: 'counters', parameterType: ParameterType.LIST_KZ_DIAG_COUNTERS},
         ],
     },
     {

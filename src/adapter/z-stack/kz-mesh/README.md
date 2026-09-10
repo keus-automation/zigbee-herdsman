@@ -62,10 +62,17 @@ per device; `rxLqi`, `txCost` and `txFailureLo` are populated for every entry,
 which is why consumers should grade link quality on those and treat RSSI as a
 detail overlay.
 
-**Counters wrap.** All 22 values from 0x67 are free-running `uint16`. Only
-`(current - previous) mod 2^16` is meaningful. The last four — `heapFreeMin`,
-`heapFragMin`, `nwkDataBufHigh`, `neighborCntHigh` — are min/max-ever watermarks
-and must be read raw, never diffed.
+**Counters wrap, and the block is append-only.** The 0x67 values (23 as of
+mesh-10) are free-running `uint16`; only `(current - previous) mod 2^16` is
+meaningful. `heapFreeMin`, `heapFragMin`, `nwkDataBufHigh`, `neighborCntHigh` are
+min/max-ever watermarks and must be read raw, never diffed.
+
+The firmware appends new counters at the end, so the response length grows over
+time. The decoder therefore reads *every remaining uint16* and names them from
+`KZ_DIAG_COUNTER_FIELDS` afterwards: an older coordinator yields `undefined` for
+trailing names, a newer one puts its extras in `unknown[]`. Neither throws -
+which matters because a throw here fails the capability probe and switches every
+mesh diagnostic off for that gateway.
 
 ## Tests
 

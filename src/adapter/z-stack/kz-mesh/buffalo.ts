@@ -128,10 +128,29 @@ export function readListKzSrcRtg(buffalo: Buffalo, length: number): KzSourceRout
  * The single hook BuffaloZnp needs: returns undefined for anything that is not
  * a kz-mesh type, so the caller falls through to its own handling.
  */
+/**
+ * MT_UTIL 0x67 - every remaining uint16 in the frame.
+ *
+ * The counter block is append-only: firmware adds fields at the END, so a
+ * newer coordinator answers with more bytes and an older one with fewer. Reading
+ * to the end (rather than a fixed field list) means neither direction throws;
+ * names are attached afterwards by KZ_DIAG_COUNTER_FIELDS in commands.ts.
+ */
+export function readListKzDiagCounters(buffalo: Buffalo): number[] {
+    const values: number[] = [];
+    const end = buffalo.getBuffer().length;
+    while (buffalo.getPosition() + 2 <= end) {
+        values.push(buffalo.readUInt16());
+    }
+    return values;
+}
+
 export function readKzListType(
     type: string, buffalo: Buffalo, length: number
-): KzNeighbor[] | KzRoutingEntry[] | KzSourceRoute[] | undefined {
+): KzNeighbor[] | KzRoutingEntry[] | KzSourceRoute[] | number[] | undefined {
     switch (type) {
+        case 'LIST_KZ_DIAG_COUNTERS':
+            return readListKzDiagCounters(buffalo);
         case 'LIST_KZ_NEIGHBOR':
             return readListKzNeighbor(buffalo, length);
         case 'LIST_KZ_RTG':
