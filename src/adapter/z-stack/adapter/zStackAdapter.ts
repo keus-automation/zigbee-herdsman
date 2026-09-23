@@ -16,6 +16,7 @@ import debounce from 'debounce';
 import {LoggerStub} from "../../../controller/logger-stub";
 import {ZnpAdapterManager} from "./manager";
 import * as Models from "../../../models";
+import { DevStates } from '../constants/common';
 
 const debug = Debug("zigbee-herdsman:adapter:zStack:adapter");
 const Subsystem = UnpiConstants.Subsystem;
@@ -88,10 +89,24 @@ class ZStackAdapter extends Adapter {
         this.znp.on('close', this.onZnpClose.bind(this));
     }
 
-    pingZNPHost = async () => {
+    public async pingZNPHost(): Promise<boolean> {
         try {
             await this.znp.request(Subsystem.SYS, 'ping', {capabilities: 1});
             return true;
+        } catch (e) {
+            return false;
+        }
+    }
+
+    public async hasCoordinatorStarted(): Promise<boolean> {
+        try {
+            const deviceInfo = await this.znp.request(Subsystem.UTIL, 'getDeviceInfo', {});
+
+            if (deviceInfo.payload.devicestate === DevStates.ZB_COORD) {
+                return true;
+            } else {
+                return false;
+            }
         } catch (e) {
             return false;
         }
@@ -220,6 +235,10 @@ class ZStackAdapter extends Adapter {
         } else {
             await this.znp.request(Subsystem.SYS, 'resetReq', {type: Constants.SYS.resetType.HARD});
         }
+    }
+
+    public async reconfigureAdapter(wipe: boolean, configItems: {id: number, value: Buffer}[]): Promise<void> {
+        return this.adapterManager.reconfigureAdapter(wipe, configItems);
     }
 
     public async supportsLED(): Promise<boolean> {
@@ -645,8 +664,8 @@ class ZStackAdapter extends Adapter {
         destinationNetworkAddress: number, sourceIeeeAddress: string, sourceEndpoint: number,
         clusterID: number, destinationAddressOrGroup: string | number, type: 'endpoint' | 'group',
         destinationEndpoint?: number
-    ): Promise<void> {
-        return this.queue.execute<void>(async () => {
+    ): Promise<any> {
+        return this.queue.execute<void>(async ():Promise<any> => {
             this.checkInterpanLock();
             const responsePayload = {srcaddr: destinationNetworkAddress};
             const response = this.znp.waitFor(Type.AREQ, Subsystem.ZDO, 'bindRsp', responsePayload);
@@ -662,7 +681,23 @@ class ZStackAdapter extends Adapter {
             };
 
             await this.znp.request(Subsystem.ZDO, 'bindReq', payload, response.ID);
-            await response.start().promise;
+            
+            let result = null
+            try {
+                let bindRsp = await response.start().promise;
+
+                result = {
+                    status: bindRsp.payload.status
+                }
+            }
+            catch {
+                result = {
+                    status: null
+                }
+            }
+            debug("Bind Result : ", result);
+            return result;
+            
         }, destinationNetworkAddress);
     }
 
@@ -670,8 +705,8 @@ class ZStackAdapter extends Adapter {
         destinationNetworkAddress: number, sourceIeeeAddress: string, sourceEndpoint: number,
         clusterID: number, destinationAddressOrGroup: string | number, type: 'endpoint' | 'group',
         destinationEndpoint: number
-    ): Promise<void> {
-        return this.queue.execute<void>(async () => {
+    ): Promise<any> {
+        return this.queue.execute<void>(async ():Promise<any> => {
             this.checkInterpanLock();
             const response = this.znp.waitFor(
                 Type.AREQ, Subsystem.ZDO, 'unbindRsp', {srcaddr: destinationNetworkAddress}
@@ -689,12 +724,28 @@ class ZStackAdapter extends Adapter {
             };
 
             await this.znp.request(Subsystem.ZDO, 'unbindReq', payload, response.ID);
-            await response.start().promise;
+            
+            let result = null
+            try {
+                let bindRsp = await response.start().promise;
+
+                result = {
+                    status: bindRsp.payload.status
+                }
+            }
+            catch {
+                result = {
+                    status: null
+                }
+            }
+            debug("Unbind Result : ", result);
+            return result;
+
         }, destinationNetworkAddress);
     }
 
-    public removeDevice(networkAddress: number, ieeeAddr: string): Promise<void> {
-        return this.queue.execute<void>(async () => {
+    public removeDevice(networkAddress: number, ieeeAddr: string): Promise<any> {
+        return this.queue.execute<void>(async ():Promise<any> => {
             this.checkInterpanLock();
             const response = this.znp.waitFor(
                 UnpiConstants.Type.AREQ, Subsystem.ZDO, 'mgmtLeaveRsp', {srcaddr: networkAddress}
@@ -707,7 +758,22 @@ class ZStackAdapter extends Adapter {
             };
 
             await this.znp.request(Subsystem.ZDO, 'mgmtLeaveReq', payload, response.ID);
-            await response.start().promise;
+            let result = null
+            try
+            {
+                let removeDeviceRsp = await response.start().promise;
+                result = { 
+                    status : removeDeviceRsp.payload.status
+                }
+            }
+            catch
+            {
+                result = {
+                    status: null
+                }
+            }
+            debug("Remove device Result : ", result);
+            return result;
         }, networkAddress);
     }
 
@@ -721,16 +787,15 @@ class ZStackAdapter extends Adapter {
         debug('Removed device security info ', resultSecDeviceRemove);
     }
 
-    public async addOfflineDevice(ieeeAddr: string, nwkAddr: number, linkKey: Buffer): Promise<void> {
+    public async addOfflineDevice(ieeeAddr: string, nwkAddr: number, linkKey: Buffer): Promise<any> {
 
-        await this.adapterManager.addOfflineDevice(ieeeAddr.split("0x")[1], nwkAddr, linkKey)
+        return await this.adapterManager.addOfflineDevice(ieeeAddr.split("0x")[1], nwkAddr, linkKey)
 
     }
     
     public async manualRestore(): Promise<void> {
 
         await this.adapterManager.manualRestore();
-
     }
 
     /**
@@ -815,8 +880,11 @@ class ZStackAdapter extends Adapter {
                             wasBroadcast: object.payload.wasbroadcast === 1,
                             destinationEndpoint: object.payload.dstendpoint,
                         };
+                        
+                        let resolveRes = this.waitress.resolve(payload)
+                        //if(!resolveRes){    //printing only if match not found
+                        //}
 
-                        this.waitress.resolve(payload);
                         this.emit(Events.Events.zclData, payload);
                     } catch (error) {
                         debug(`Error while parsing ${error}`);
@@ -841,8 +909,10 @@ class ZStackAdapter extends Adapter {
     public async getNetworkParameters(): Promise<NetworkParameters> {
         const result = await this.znp.request(Subsystem.ZDO, 'extNwkInfo', {});
         return {
-            panID: result.payload.panid, extendedPanID: result.payload.extendedpanid,
-            channel: result.payload.channel
+            panID: result.payload.panid, 
+            extendedPanID: result.payload.extendedpanid,
+            channel: result.payload.channel,
+            extendedPanIDArray: Array.from(Buffer.from(result.payload.extendedpanid.toString().slice(2), "hex")),
         };
     }
 

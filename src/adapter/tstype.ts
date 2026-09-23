@@ -114,6 +114,7 @@ interface NetworkParameters {
     panID: number;
     extendedPanID: number;
     channel: number;
+    extendedPanIDArray?: number[];
 }
 
 export {

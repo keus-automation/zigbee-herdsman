@@ -90,6 +90,15 @@ export class ZnpAdapterManager {
         }
         }
 
+        let bcast = await this.nv.readItem(NvItemsIds.BCAST_RETRIES);
+        let pat = await this.nv.readItem(NvItemsIds.PASSIVE_ACK_TIMEOUT);
+        let bdt = await this.nv.readItem(NvItemsIds.BCAST_DELIVERY_TIME);
+        let ce = await this.nv.readItem(NvItemsIds.NWK_CHILD_AGE_ENABLE);
+        this.debug.startup(`<<-- broadcast retries: ${Array.from(bcast)} -->>`);
+        this.debug.startup(`<<-- passive ack timeout: ${Array.from(pat)} -->>`);
+        this.debug.startup(`<<-- broadcast delivery time: ${Array.from(bdt)} -->>`);
+        this.debug.startup(`<<-- network child age enable: ${Array.from(ce)} -->>`);
+
         /* register endpoints */
         await this.registerEndpoints();
 
@@ -183,22 +192,6 @@ export class ZnpAdapterManager {
 
                 /* Configuration matches adapter state - regular startup */
                 this.debug.strategy("(stage-2) adapter state matches configuration");
-
-                //write update nib
-                //check nib params
-                if( nib.BroadcastDeliveryTime != 60 || 
-                    nib.MaxBroadcastRetries != 3 ||
-                    nib.PassiveAckTimeout != 5 )
-                {
-                    this.debug.strategy("(stage-2a) Keus NIB network settings did not match");
-                    nib.BroadcastDeliveryTime = 60;
-                    nib.MaxBroadcastRetries = 3;
-                    nib.PassiveAckTimeout = 5;
-                    /* write update nib */
-                    await this.nv.writeItem(NvItemsIds.NIB, nib);
-                    await Wait(5000);
-                }
-
 
                 return "startup";
             } else {
@@ -433,6 +426,8 @@ export class ZnpAdapterManager {
                 ]);
             }
         }
+
+        this.debug.startup(`<<-- registered endpoints: ${activeEp.payload.activeeplist.join(", ")} -->>`);
     }
 
     /**
@@ -465,6 +460,40 @@ export class ZnpAdapterManager {
         await this.nv.writeItem(NvItemsIds.STARTUP_OPTION, Buffer.from([0x03]));
         await this.resetAdapter();
         await this.nv.writeItem(NvItemsIds.STARTUP_OPTION, Buffer.from([0x00]));
+    }
+
+    /**
+     * Expose method reconfigure adapter with options
+     * wipe - reset adapter config and data.
+     * configure - configure nv items
+     */
+    public async reconfigureAdapter(wipe: boolean, configItems?: {id: NvItemsIds, value: number[]}[]): Promise<void> {
+        
+        let startRequired = false;
+
+        if (wipe) {
+            this.debug.startup("Wiping adapter using startup option 3");
+            await this.nv.writeItem(NvItemsIds.STARTUP_OPTION, Buffer.from([0x03]));
+            await this.resetAdapter();
+            await this.nv.writeItem(NvItemsIds.STARTUP_OPTION, Buffer.from([0x00]));
+
+            startRequired = true;
+        }
+
+        if (configItems && configItems.length) {
+            for (const item of configItems) {
+                this.debug.startup(`Configuring NV item ${NvItemsIds[item.id]} with value ${item.value.toString()}`);
+                await this.nv.writeItem(item.id, Buffer.from(item.value));
+            }
+
+            await this.resetAdapter();
+
+            startRequired = true;
+        }
+
+        // trigger start to apply changes
+        if(startRequired)
+            this.start();
     }
 
     /**
@@ -503,40 +532,82 @@ export class ZnpAdapterManager {
         await this.nv.writeItem(this.options.version === ZnpVersion.zStack12 ? NvItemsIds.ZNP_HAS_CONFIGURED_ZSTACK1 : NvItemsIds.ZNP_HAS_CONFIGURED_ZSTACK3, Buffer.from([0x55]));
     }
 
-    public async addOfflineDevice(ieeeAddr: string, nwkAddr: number, linkKey: Buffer): Promise<void> {
+    public async addOfflineDevice(ieeeAddr: string, nwkAddr: number, linkKey: Buffer): Promise<{success: boolean, message?: string, error?: string}> {
 
+/* security manager add direct approach*/
+        try {
+            
+            let response = await this.znp.request(
+                Subsystem.ZDO,
+                'secAddLinkKey',
+                {
+                    shortaddr: nwkAddr,
+                    extaddr: ieeeAddr,
+                    linkkey: linkKey
+                }
+            );
+    
+            if(response.payload.status == ZnpCommandStatus.SUCCESS) 
+            {
+                console.log(`Successfully added offline device with IEEE address ${ieeeAddr} and NWK address ${nwkAddr}`);
+    
+                return { 
+                    success: true, 
+                    message: `Successfully added offline device with IEEE address ${ieeeAddr} and NWK address ${nwkAddr}`
+                };
+            }
+            else 
+            {
+                console.error(`Failed to add offline device with IEEE address ${ieeeAddr} and NWK address ${nwkAddr} - status: ${ZnpCommandStatus[response.payload.status]}`);
+    
+                return { 
+                    success: false,
+                    error: `Failed to add offline device with IEEE address ${ieeeAddr} and NWK address ${nwkAddr} - status: ${ZnpCommandStatus[response.payload.status]}`,
+                };
+            }
+        }
+        catch(error)
+        {
+            return {
+                success: false,
+                error: `Failed to add offline device with IEEE address ${ieeeAddr} and NWK address ${nwkAddr} - exception occurred: ${error.message}`
+            }
+        }
+
+/* security manager add direct approach end*/
+
+/*test add approach */
+        // const testEntryIndex = 249
+
+        // const ame = Structs.addressManagerEntry(Buffer.alloc(11, 0));
+        // ame.nwkAddr = nwkAddr;
+        // ame.extAddr = Buffer.from(ieeeAddr, 'hex');
+        // ame.user = Structs.AddressManagerUser.Assoc;
+
+        // ame.user |= Structs.AddressManagerUser.Security;
+
+        // const apsKeyDataEntry = Structs.apsLinkKeyDataEntry(Buffer.alloc(24, 0));
+        // apsKeyDataEntry.key = Buffer.from(linkKey);
+        // apsKeyDataEntry.rxFrmCntr = 0;
+        // apsKeyDataEntry.txFrmCntr = 0;
+
+        // const sme = Structs.securityManagerEntry(Buffer.alloc(5, 0));
+        // sme.ami = testEntryIndex;
+        // sme.keyNvId = testEntryIndex;
+        // sme.authenticationOption = Structs.SecurityManagerAuthenticationOption.AuthenticatedCBCK;
+
+        // /* write address manager table entry */
+        // await this.nv.writeExtendedTableEntry(NvSystemIds.ZSTACK, NvItemsIds.ZCD_NV_EX_ADDRMGR, testEntryIndex, ame.serialize(this.nv.memoryAlignment));
+
+        // /* write security manager table entry */
+        // await this.nv.writeExtendedTableEntry(NvSystemIds.ZSTACK, NvItemsIds.APS_LINK_KEY_TABLE, testEntryIndex, sme.serialize(this.nv.memoryAlignment));
         
+        // /* write aps link key data table entry*/
+        // await this.nv.writeExtendedTableEntry(NvSystemIds.ZSTACK, NvItemsIds.ZCD_NV_EX_APS_KEY_DATA_TABLE, testEntryIndex, apsKeyDataEntry.serialize(this.nv.memoryAlignment));
 
-        /* entry add approach */
-        const testEntryIndex = 249
+/* test add approach end */        
 
-        const ame = Structs.addressManagerEntry(Buffer.alloc(11, 0));
-        ame.nwkAddr = nwkAddr;
-        ame.extAddr = Buffer.from(ieeeAddr, 'hex');
-        ame.user = Structs.AddressManagerUser.Assoc;
-
-        ame.user |= Structs.AddressManagerUser.Security;
-
-        const apsKeyDataEntry = Structs.apsLinkKeyDataEntry(Buffer.alloc(24, 0));
-        apsKeyDataEntry.key = Buffer.from(linkKey);
-        apsKeyDataEntry.rxFrmCntr = 0;
-        apsKeyDataEntry.txFrmCntr = 0;
-
-        const sme = Structs.securityManagerEntry(Buffer.alloc(5, 0));
-        sme.ami = testEntryIndex;
-        sme.keyNvId = testEntryIndex;
-        sme.authenticationOption = Structs.SecurityManagerAuthenticationOption.AuthenticatedCBCK;
-
-        /* write address manager table entry */
-        await this.nv.writeExtendedTableEntry(NvSystemIds.ZSTACK, NvItemsIds.ZCD_NV_EX_ADDRMGR, testEntryIndex, ame.serialize(this.nv.memoryAlignment));
-
-        /* write security manager table entry */
-        await this.nv.writeExtendedTableEntry(NvSystemIds.ZSTACK, NvItemsIds.APS_LINK_KEY_TABLE, testEntryIndex, sme.serialize(this.nv.memoryAlignment));
-        
-        /* write aps link key data table entry*/
-        await this.nv.writeExtendedTableEntry(NvSystemIds.ZSTACK, NvItemsIds.ZCD_NV_EX_APS_KEY_DATA_TABLE, testEntryIndex, apsKeyDataEntry.serialize(this.nv.memoryAlignment));
-
-        /* table update approach */
+/* table update approach */
         // const currentAddressManagerTable = await this.nv.readTable("extended", NvSystemIds.ZSTACK, NvItemsIds.ZCD_NV_EX_ADDRMGR, undefined, Structs.addressManagerTable);
         // const currentSecurityManagerTable = await this.nv.readItem(NvItemsIds.APS_LINK_KEY_TABLE, 0, Structs.securityManagerTable);
         // const currentApsLinkKeyDataTable = await this.nv.readTable("extended", NvSystemIds.ZSTACK, NvItemsIds.ZCD_NV_EX_APS_KEY_DATA_TABLE, undefined, Structs.apsLinkKeyDataTable);
@@ -578,10 +649,10 @@ export class ZnpAdapterManager {
         
         // /* write aps link key data table */
         // await this.nv.writeTable("extended", NvSystemIds.ZSTACK, NvItemsIds.ZCD_NV_EX_APS_KEY_DATA_TABLE, apsLinkKeyDataTable);
-    
+/* table update approach end */
     }
 
-    public async manualRestore(ieeeAddr: string, nwkAddr: number, linkKey: Buffer): Promise<void> {
+    public async manualRestore(): Promise<void> {
 
         await this.beginRestore();
     }
