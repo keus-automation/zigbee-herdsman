@@ -122,3 +122,10 @@ export {
     DeviceType, ActiveEndpoints, SimpleDescriptor, LQI, LQINeighbor, RoutingTable, Backup, NetworkParameters,
     StartResult, RoutingTableEntry, AdapterOptions, SocketOptions, CustomTransportOptions
 };
+
+// kz-mesh hook: re-exported so consumers can keep using AdapterTsType.Kz*.
+// The definitions live in ./z-stack/kz-mesh/tstype.
+export {
+    KzMeshCapabilities, KzDiagCounters, KzNeighbor, KzNeighborTable, KzRoutingEntry,
+    KzSourceRoute, KzProvisionRequest, KzProvisionResult, KzDeviceNwkInfo
+} from './z-stack/kz-mesh/tstype';

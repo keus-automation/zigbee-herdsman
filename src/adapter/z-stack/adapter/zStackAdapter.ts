@@ -3,6 +3,9 @@ import {
     DeviceType, ActiveEndpoints, SimpleDescriptor, LQI, RoutingTable, NetworkParameters,
     StartResult, LQINeighbor, RoutingTableEntry, AdapterOptions,
 } from '../../tstype';
+// kz-mesh hook: all Keus mesh diagnostics live in ../kz-mesh
+import * as KzMesh from '../kz-mesh';
+import * as SendPolicy from './send-policy';
 import {ZnpVersion} from './tstype';
 import * as Events from '../../events';
 import Adapter from '../../adapter';
@@ -22,6 +25,16 @@ const debug = Debug("zigbee-herdsman:adapter:zStack:adapter");
 const Subsystem = UnpiConstants.Subsystem;
 const Type = UnpiConstants.Type;
 const {ZnpCommandStatus, AddressMode} = Constants.COMMON;
+
+/**
+ * Coordinator-level failures required before recovery is requested.
+ *
+ * One is not enough to justify the response: recovery power-cycles the chip,
+ * which takes the whole mesh down for ~25s, so a single transient stall would
+ * cause a worse outage than the symptom. Two independent failures is the
+ * confirmation - cheaper and simpler than probing the chip to double-check.
+ */
+const ADAPTER_FAILURES_BEFORE_RECOVERY = 2;
 
 const DataConfirmTimeout = 9999; // Not an actual code
 const DataConfirmErrorCodeLookup: {[k: number]: string} = {
@@ -62,10 +75,23 @@ class ZStackAdapter extends Adapter {
         product: number; transportrev: number; majorrel: number; minorrel: number; maintrel: number; revision: string;
     };
     private closing: boolean;
+    /**
+     * True once start() has completed successfully. Requests made while the stack
+     * is coming up, or after a start that failed, have their own retries and must
+     * never be read as an adapter fault.
+     */
+    private initialized_: boolean;
+    /** Set once a failure has been reported, so we report exactly once per start. */
+    private failureReported_: boolean;
+    /** Coordinator-level failures seen since the last success. */
+    private adapterFailures_: number;
     private queue: Queue;
     private supportsLED_: boolean;
+    private supportsKzMesh_: boolean;
     private interpanLock: boolean;
     private interpanEndpointRegistered: boolean;
+    /** repeated-failure memory, so a powered-off device stops costing a full ladder */
+    private deviceFailures: SendPolicy.DeviceFailureTracker;
     private waitress: Waitress<Events.ZclDataPayload, WaitressMatcher>;
 
     public constructor(networkOptions: NetworkOptions,
@@ -81,6 +107,11 @@ class ZStackAdapter extends Adapter {
         this.interpanLock = false;
         this.interpanEndpointRegistered = false;
         this.closing = false;
+        this.initialized_ = false;
+        this.failureReported_ = false;
+        this.adapterFailures_ = 0;
+        this.supportsKzMesh_ = false;
+        this.deviceFailures = new SendPolicy.DeviceFailureTracker();
         this.waitress = new Waitress<Events.ZclDataPayload, WaitressMatcher>(
             this.waitressValidator, this.waitressTimeoutFormatter
         );
@@ -92,8 +123,12 @@ class ZStackAdapter extends Adapter {
     public async pingZNPHost(): Promise<boolean> {
         try {
             await this.znp.request(Subsystem.SYS, 'ping', {capabilities: 1});
+            this.adapterFailures_ = 0;
             return true;
         } catch (e) {
+            // A ping is answered locally by the chip and involves no radio, so a
+            // failure here means the MT layer itself has stopped responding.
+            this.reportAdapterFailure('ping-failed', `the coordinator did not answer SYS ping (${e})`);
             return false;
         }
     }
@@ -141,6 +176,10 @@ class ZStackAdapter extends Adapter {
         const zStack3x0 = this.version.product === ZnpVersion.zStack3x0;
         this.supportsLED_ = !zStack3x0 || (zStack3x0 && parseInt(this.version.revision) >= 20210430);
 
+        // kz-mesh hook: one empty SREQ to find out whether the firmware has the
+        // Keus MT_UTIL extensions.
+        this.supportsKzMesh_ = await KzMesh.probeKzMeshSupport(this.znp);
+
         const concurrent = this.adapterOptions && this.adapterOptions.concurrent ?
             this.adapterOptions.concurrent :
             (this.version.product === ZnpVersion.zStack3x0 ? 16 : 2);
@@ -160,11 +199,24 @@ class ZStackAdapter extends Adapter {
             },
             this.logger
         );
-        return this.adapterManager.start();
+        const startResult = await this.adapterManager.start();
+
+        /**
+         * Only a SUCCESSFUL start arms failure reporting. If start() throws, the
+         * bring-up path retries on its own, and reporting failures underneath
+         * that would have the host restarting a chip that is already being
+         * restarted.
+         */
+        this.initialized_ = true;
+        this.failureReported_ = false;
+        this.adapterFailures_ = 0;
+
+        return startResult;
     }
 
     public async stop(): Promise<void> {
         this.closing = true;
+        this.initialized_ = false;
         await this.znp.close();
     }
 
@@ -276,6 +328,25 @@ class ZStackAdapter extends Adapter {
         return this.version.product === ZnpVersion.zStack3x0 && parseInt(this.version.revision) >= 20201026;
     }
 
+    /**
+     * TODO: replace the fixed 3s wait with polling the routing table.
+     *
+     * This unconditional sleep is now the dominant cost in every send that needs a
+     * route. Measured against the bounded ladder with REQ_TIMEOUT=6000:
+     *
+     *   route required          ~3.6s total, of which 3.0s is this Wait (84%)
+     *   interference + route    ~4.2s total, of which 3.0s is this Wait (71%)
+     *
+     * On mesh firmware the coordinator's routing table is readable (MT_UTIL 0x69),
+     * so instead of sleeping a fixed 3s we can poll it every ~250ms and continue
+     * the moment the destination goes ACTIVE. On a static mesh that is usually well
+     * under a second, taking the route-required case from ~3.6s to roughly ~1s.
+     * Keep the fixed wait as the fallback for firmware without 0x69, and keep an
+     * upper bound so a route that never converges still gives up.
+     *
+     * Deliberately not done yet: the send ladder was just rewritten, and that
+     * wants validating on real hardware before another timing change lands on top.
+     */
     private async discoverRoute(networkAddress: number, wait=true): Promise<void> {
         debug('Discovering route to %d', networkAddress);
         const payload =  {dstAddr: networkAddress, options: 0, radius: Constants.AF.DEFAULT_RADIUS};
@@ -359,13 +430,359 @@ class ZStackAdapter extends Adapter {
     ): Promise<Events.ZclDataPayload> {
         return this.queue.execute<Events.ZclDataPayload>(async () => {
             this.checkInterpanLock();
-            return this.sendZclFrameToEndpointInternal(
+            /**
+             * Swap this call for sendZclFrameToEndpointInternal(...) to get the
+             * legacy retry ladder back:
+             *
+             *   return this.sendZclFrameToEndpointInternal(
+             *       ieeeAddr, networkAddress, endpoint, sourceEndpoint || 1, zclFrame, timeout,
+             *       disableResponse, disableRecovery, 0, 0, false, false, false, null
+             *   );
+             */
+            return this.sendZclFrameToEndpointBounded(
                 ieeeAddr, networkAddress, endpoint, sourceEndpoint || 1, zclFrame, timeout, disableResponse,
-                disableRecovery, 0, 0, false, false, false, null
+                disableRecovery
             );
         }, networkAddress);
     }
 
+    /**
+     * Send policy for one command.
+     *
+     * The deadline is derived from the caller's timeout so an interactive command
+     * cannot be stuck for minutes, and route discovery is only offered when the
+     * caller has not disabled recovery.
+     */
+    private sendPolicyFor(timeout: number, disableRecovery: boolean): SendPolicy.SendPolicyOptions {
+        const base = SendPolicy.DEFAULT_SEND_POLICY;
+
+        return {
+            ...base,
+            /**
+             * Enough for the attempt budget plus its backoffs, but bounded. The
+             * old code had no wall-clock limit at all.
+             */
+            deadlineMs: Math.max(timeout * 2, base.deadlineMs),
+            allowRouteDiscovery: !disableRecovery,
+        };
+    }
+
+    /**
+     * Bounded send ladder - the alternative to sendZclFrameToEndpointInternal.
+     *
+     * One attempt budget and one wall-clock deadline covering BOTH the
+     * data-confirm and the ZCL-response failure modes, with recovery chosen by
+     * what actually failed rather than by attempt number. Decisions live in
+     * ./send-policy so they can be reasoned about and tested on their own.
+     *
+     * Differs from the legacy path in five ways:
+     *   - at most 4 sends, not 4 x 4 = 16 (the legacy response retry carried
+     *     dataRequestAttempt forward without resetting it)
+     *   - a wall-clock deadline, which the legacy path has none of
+     *   - exponential backoff with jitter instead of a flat 2s
+     *   - no assoc remove/add surgery, and no address broadcast by default
+     *   - route discovery consults the coordinator's routing table first on mesh
+     *     firmware, and is never done for a frame that was confirmed delivered
+     *
+     * The legacy implementation is kept intact below. To go back to it, change the
+     * call in sendZclFrameToEndpoint().
+     */
+    private async sendZclFrameToEndpointBounded(
+        ieeeAddr: string, networkAddress: number, endpoint: number, sourceEndpoint: number, zclFrame: ZclFrame,
+        timeout: number, disableResponse: boolean, disableRecovery: boolean,
+    ): Promise<Events.ZclDataPayload> {
+
+        const policy = this.sendPolicyFor(timeout, disableRecovery);
+        const deadlineAt = Date.now() + policy.deadlineMs;
+        const trackerKey = ieeeAddr;
+
+        /**
+         * A device that has failed the full ladder repeatedly is almost certainly
+         * powered off. Fail it fast rather than spending the whole budget and a
+         * queue slot on it every time.
+         */
+        if (!disableRecovery && this.deviceFailures.isSuspect(trackerKey)) {
+            const remaining = this.deviceFailures.suspectFor(trackerKey);
+            debug(
+                'send %s: device is in failure cooldown for another %dms, failing fast',
+                ieeeAddr, remaining
+            );
+            throw new Error(
+                `Device '${ieeeAddr}' is not responding (repeated send failures); ` +
+                `retrying in ${Math.ceil(remaining / 1000)}s`
+            );
+        }
+
+        const state: SendPolicy.SendAttemptState = {
+            attempt: 0, routeActionTaken: false, addressChecked: false, msRemaining: policy.deadlineMs,
+        };
+
+        let lastFailure: SendPolicy.SendFailure = null;
+        let lastConfirmStatus: number = null;
+        // kept so the waitress' message (which names the transaction) survives
+        let lastResponseError: Error = null;
+
+        while (true) {
+            state.attempt++;
+            state.msRemaining = deadlineAt - Date.now();
+
+            debug(
+                'sendZclFrameToEndpointInternal %s:%i/%i (attempt %i, %ims left, queue %i)',
+                ieeeAddr, networkAddress, endpoint, state.attempt, state.msRemaining, this.queue.count()
+            );
+
+            const command = zclFrame.getCommand();
+            let response = null;
+
+            if (command.hasOwnProperty('response') && disableResponse === false) {
+                response = this.waitForInternal(
+                    networkAddress, endpoint, zclFrame.Header.frameControl.frameType, Direction.SERVER_TO_CLIENT,
+                    zclFrame.Header.transactionSequenceNumber, zclFrame.Cluster.ID, command.response, timeout
+                );
+            } else if (!zclFrame.Header.frameControl.disableDefaultResponse) {
+                response = this.waitForInternal(
+                    networkAddress, endpoint, FrameType.GLOBAL, Direction.SERVER_TO_CLIENT,
+                    zclFrame.Header.transactionSequenceNumber, zclFrame.Cluster.ID, Foundation.defaultRsp.ID,
+                    timeout,
+                );
+            }
+
+            /**
+             * dataRequest throws for coordinator-level failures - a rejected SREQ
+             * (INVALID_PARAM when the AF endpoint is not registered) or no SRSP at
+             * all. Those used to escape this loop entirely, which meant no retry,
+             * no failure recorded against the device, and a leaked response
+             * waitress that stayed armed for the full timeout. They are now
+             * classified and fed through the same ladder as every other failure.
+             */
+            let confirmStatus: number = null;
+            let adapterError: Error = null;
+
+            try {
+                confirmStatus = await this.dataRequest(
+                    networkAddress, endpoint, sourceEndpoint, zclFrame.Cluster.ID, Constants.AF.DEFAULT_RADIUS,
+                    zclFrame.toBuffer(), timeout
+                );
+            } catch (error) {
+                adapterError = error;
+            }
+
+            if (adapterError !== null) {
+                if (response !== null) response.cancel();
+                lastFailure = SendPolicy.SendFailure.ADAPTER;
+                lastConfirmStatus = null;
+                // keeps the original message, which names the SREQ and the timeout
+                lastResponseError = adapterError;
+                debug(
+                    'send %s: coordinator did not accept the request (attempt %i): %s',
+                    ieeeAddr, state.attempt, adapterError
+                );
+                this.noteAdapterFailure(adapterError);
+            } else if (confirmStatus === ZnpCommandStatus.SUCCESS) {
+                // The coordinator is demonstrably healthy.
+                this.adapterFailures_ = 0;
+
+                if (response === null) {
+                    this.deviceFailures.recordSuccess(trackerKey);
+                    return;
+                }
+
+                try {
+                    const result = await response.start().promise;
+                    this.deviceFailures.recordSuccess(trackerKey);
+                    return result;
+                } catch (error) {
+                    // Confirmed on the network but the device never answered.
+                    lastFailure = SendPolicy.SendFailure.RESPONSE_TIMEOUT;
+                    lastConfirmStatus = null;
+                    lastResponseError = error;
+                    debug('send %s: response timeout (attempt %i)', ieeeAddr, state.attempt);
+                }
+            } else {
+                if (response !== null) response.cancel();
+                lastConfirmStatus = confirmStatus;
+                lastFailure = SendPolicy.classifyConfirmStatus(confirmStatus);
+                debug(
+                    'send %s: confirm failed status=%d class=%s (attempt %i)',
+                    ieeeAddr, confirmStatus, lastFailure, state.attempt
+                );
+            }
+
+            if (disableRecovery) {
+                this.throwSendFailure(ieeeAddr, trackerKey, lastFailure, lastConfirmStatus, lastResponseError);
+            }
+
+            state.msRemaining = deadlineAt - Date.now();
+            const decision = SendPolicy.decideRecovery(lastFailure, state, policy);
+            debug('send %s: %s (%s)', ieeeAddr, decision.action, decision.reason);
+
+            if (decision.action === 'give-up') {
+                this.throwSendFailure(ieeeAddr, trackerKey, lastFailure, lastConfirmStatus, lastResponseError);
+            }
+
+            if (decision.action === 'discover-route') {
+                state.routeActionTaken = true;
+                await this.recoverRoute(networkAddress, lastFailure);
+            } else if (decision.action === 'check-address') {
+                state.addressChecked = true;
+                try {
+                    const actual = await this.requestNetworkAddress(ieeeAddr);
+                    if (actual !== networkAddress) {
+                        debug('send %s: short address moved %d -> %d', ieeeAddr, networkAddress, actual);
+                        networkAddress = actual;
+                    }
+                } catch {
+                    /* nothing to do - the send will fail again and the budget applies */
+                }
+            } else if (decision.waitMs > 0) {
+                await Wait(decision.waitMs);
+            }
+        }
+    }
+
+    /**
+     * Classifies a coordinator-level send failure.
+     *
+     * Both shapes mean the frame never left the chip, so neither says anything
+     * about the mesh or the target device:
+     *
+     *  - INVALID_PARAM on a well-formed MT request means the source endpoint is
+     *    not registered, i.e. the chip restarted and was never reconfigured.
+     *  - No SRSP at all means the MT layer stopped answering. An SRSP is a local
+     *    acknowledgement involving no radio, so its absence is never normal.
+     */
+    private noteAdapterFailure(error: Error): void {
+        if (String(error).includes('INVALID_PARAM')) {
+            this.reportAdapterFailure(
+                'invalid-param',
+                'the coordinator rejected an MT request with INVALID_PARAM; its endpoints are not registered'
+            );
+            return;
+        }
+
+        this.reportAdapterFailure('timeout', `the coordinator did not answer an MT request (${error})`);
+    }
+
+    /**
+     * Records a coordinator-level failure and, on the second one, reports it.
+     *
+     * Only called for states we can positively identify as unrecoverable from
+     * here. Nothing in the adapter can repair them - the endpoint registrations
+     * and the coordinator startup handshake both live in adapterManager.start(),
+     * and a chip that has stopped servicing its UART needs its power line driven,
+     * which only the host can do.
+     *
+     * Nothing is reported until the controller has started SUCCESSFULLY. While
+     * the stack is still coming up - or after a start that failed - the bring-up
+     * path is already retrying, and restarting underneath it would fight that.
+     * Latched after reporting, so a burst reports once.
+     */
+    private reportAdapterFailure(reason: Events.AdapterFailurePayload['reason'], detail: string): void {
+        if (!this.initialized_ || this.failureReported_ || this.closing) {
+            return;
+        }
+
+        this.adapterFailures_++;
+
+        if (this.adapterFailures_ < ADAPTER_FAILURES_BEFORE_RECOVERY) {
+            debug(
+                'Adapter failure %i of %i (%s): %s',
+                this.adapterFailures_, ADAPTER_FAILURES_BEFORE_RECOVERY, reason, detail
+            );
+            return;
+        }
+
+        this.failureReported_ = true;
+        const message = `Adapter needs recovery (${reason}): ${detail}`;
+        debug(message);
+
+        if (this.logger) {
+            this.logger.error(message);
+        }
+
+        this.emit(Events.Events.adapterFailure, {
+            reason,
+            detail,
+            failures: this.adapterFailures_,
+        });
+    }
+
+    /** Records the failure against the device and throws the appropriate error. */
+    private throwSendFailure(
+        ieeeAddr: string, trackerKey: string,
+        failure: SendPolicy.SendFailure, confirmStatus: number, responseError?: Error
+    ): never {
+        /**
+         * An ADAPTER failure says nothing about the device - the frame never left
+         * the coordinator. Counting it against the device would put every device
+         * in the network into failure cooldown the moment the chip stops
+         * answering, and leave them there for a minute after it recovers.
+         */
+        if (failure === SendPolicy.SendFailure.ADAPTER) {
+            debug('send %s: giving up, coordinator did not accept the request', ieeeAddr);
+        } else {
+            const consecutive = this.deviceFailures.recordFailure(trackerKey);
+            debug('send %s: giving up after %i consecutive failures', ieeeAddr, consecutive);
+        }
+
+        if (confirmStatus !== null) {
+            throw new DataConfirmError(confirmStatus);
+        }
+
+        // The waitress' own message names the transaction, which is more useful
+        // for debugging than anything we could synthesise here.
+        if (responseError) {
+            throw responseError;
+        }
+
+        throw new Error(`Request timed out (${failure})`);
+    }
+
+    /**
+     * Route recovery.
+     *
+     * On mesh firmware the coordinator's own tables are consulted first: if a
+     * route is already ACTIVE the problem is congestion or a device that is off,
+     * and forcing a discovery would only churn a good route and add broadcast
+     * load. LINK_FAIL is latched deliberately by the MTO mitigation and cleared by
+     * the next MTORR, so fighting it with unicast discovery is pointless.
+     */
+    private async recoverRoute(networkAddress: number, failure: SendPolicy.SendFailure): Promise<void> {
+        if (this.supportsKzMesh_) {
+            try {
+                const routes = await KzMesh.getRoutingTable(this.znp, this.queue);
+                const route = routes.find((entry) => entry.dst === networkAddress);
+
+                if (route) {
+                    if (route.statusName === 'ACTIVE' && failure !== SendPolicy.SendFailure.NO_ROUTE) {
+                        debug('recoverRoute %d: route is ACTIVE, not forcing discovery', networkAddress);
+                        return;
+                    }
+
+                    if (route.statusName === 'LINK_FAIL') {
+                        debug('recoverRoute %d: LINK_FAIL is latched until the next MTORR', networkAddress);
+                        return;
+                    }
+
+                    if (route.statusName === 'DISCOVERY_FAILED') {
+                        debug('recoverRoute %d: discovery already failed, not repeating it', networkAddress);
+                        return;
+                    }
+                }
+            } catch (error) {
+                debug('recoverRoute %d: could not read the routing table (%s)', networkAddress, error);
+            }
+        }
+
+        await this.discoverRoute(networkAddress);
+    }
+
+    /**
+     * LEGACY send ladder - kept verbatim so the previous behaviour can be
+     * restored by changing the call in sendZclFrameToEndpoint(). Not called by
+     * default. See sendZclFrameToEndpointBounded() for the current path and for
+     * what differs.
+     */
     private async sendZclFrameToEndpointInternal(
         ieeeAddr: string, networkAddress: number, endpoint: number, sourceEndpoint: number, zclFrame: ZclFrame,
         timeout: number, disableResponse: boolean, disableRecovery: boolean, responseAttempt: number,
@@ -778,21 +1195,102 @@ class ZStackAdapter extends Adapter {
     }
 
     public async forceRemoveDevice(ieeeAddr: string): Promise<void> {
+        if (this.supportsKzMesh_) {
+            /**
+             * 0x65 already purges the APS link key and the TCLK NV entry, so the
+             * legacy removeLinkKey/secDeviceRemove follow-ups would come back with a
+             * non-SUCCESS status and znp.request would throw on an otherwise
+             * successful purge. Single call is both correct and complete here.
+             */
+            const status = await this.kzPurgeDevice(ieeeAddr);
+
+            if (status !== 0) {
+                /**
+                 * The caller removes the database row regardless, so a silent
+                 * failure here would leave the coordinator holding a device the
+                 * gateway has forgotten about.
+                 */
+                const message = `kzDeviceRemove('${ieeeAddr}') returned status ${status} - ` +
+                    `coordinator state may not be fully purged`;
+                debug(message);
+                if (this.logger) {
+                    this.logger.warn(message);
+                }
+            } else {
+                debug('kzDeviceRemove(%s) purged', ieeeAddr);
+            }
+
+            return;
+        }
+
         const resultRemoveLinkKey = await this.znp.request(Subsystem.ZDO, 'removeLinkKey', { ieeeaddr: ieeeAddr });
-        const resultAssocRemove = await this.znp.request(Subsystem.ZDO, 'secDeviceRemove', { extaddr: ieeeAddr });
-        const resultSecDeviceRemove = await this.znp.request(Subsystem.ZDO, 'assocRemove', { ieeeadr: ieeeAddr });
+        const resultSecDeviceRemove = await this.znp.request(Subsystem.ZDO, 'secDeviceRemove', { extaddr: ieeeAddr });
+        // assocRemove lives under UTIL, not ZDO - calling it on ZDO threw
+        // "Command 'assocRemove' from subsystem 'ZDO' not found" and the caller's
+        // catch swallowed it, so this step never actually ran.
+        const resultAssocRemove = await this.znp.request(Subsystem.UTIL, 'assocRemove', { ieeeadr: ieeeAddr });
 
         debug('Removed device link key ', resultRemoveLinkKey);
-        debug('Removed device association ', resultAssocRemove);
         debug('Removed device security info ', resultSecDeviceRemove);
+        debug('Removed device association ', resultAssocRemove);
     }
 
-    public async addOfflineDevice(ieeeAddr: string, nwkAddr: number, linkKey: Buffer): Promise<any> {
+    /**
+     * Keus mesh diagnostics - thin delegation to ../kz-mesh.
+     *
+     * Callers must gate on supportsKzMesh(); assertKzMesh below turns a missing
+     * capability into a clear error rather than empty data that would read as
+     * "nothing wrong".
+     */
 
-        return await this.adapterManager.addOfflineDevice(ieeeAddr.split("0x")[1], nwkAddr, linkKey)
-
+    public supportsKzMesh(): boolean {
+        return this.supportsKzMesh_;
     }
-    
+
+    public async kzGetMeshCapabilities(): Promise<KzMesh.KzMeshCapabilities> {
+        return {
+            supportsKzMesh: this.supportsKzMesh_,
+            znpVersion: this.version ? ZnpVersion[this.version.product] : 'unknown',
+            revision: this.version ? this.version.revision : '',
+        };
+    }
+
+    private assertKzMesh(): void {
+        if (!this.supportsKzMesh_) {
+            throw new Error('Coordinator firmware does not support the Keus mesh diagnostic commands');
+        }
+    }
+
+    public async kzGetDiagCounters(): Promise<KzMesh.KzDiagCounters> {
+        this.assertKzMesh();
+        return KzMesh.getDiagCounters(this.znp, this.queue);
+    }
+
+    public async kzGetNeighborTable(): Promise<KzMesh.KzNeighborTable> {
+        this.assertKzMesh();
+        return KzMesh.getNeighborTable(this.znp, this.queue);
+    }
+
+    public async kzGetRoutingTable(): Promise<KzMesh.KzRoutingEntry[]> {
+        this.assertKzMesh();
+        return KzMesh.getRoutingTable(this.znp, this.queue);
+    }
+
+    public async kzGetSourceRoutes(): Promise<KzMesh.KzSourceRoute[]> {
+        this.assertKzMesh();
+        return KzMesh.getSourceRoutes(this.znp, this.queue);
+    }
+
+    public async kzProvisionDevice(request: KzMesh.KzProvisionRequest): Promise<KzMesh.KzProvisionResult> {
+        this.assertKzMesh();
+        return KzMesh.provisionDevice(this.znp, this.queue, request);
+    }
+
+    public async kzPurgeDevice(ieeeAddr: string): Promise<number> {
+        this.assertKzMesh();
+        return KzMesh.purgeDevice(this.znp, this.queue, ieeeAddr);
+    }
+
     public async manualRestore(): Promise<void> {
 
         await this.adapterManager.manualRestore();

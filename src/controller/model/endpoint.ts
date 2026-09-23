@@ -278,6 +278,21 @@ class Endpoint extends Entity {
     }
 
     public async sendRequest<Type>(func: () => Promise<Type>, sendWhenActive: boolean): Promise<Type> {
+        /**
+         * Fail fast for a device that has left. Without this, every request to a
+         * departed device entered the adapter's full retry ladder - minutes of
+         * unicasts and a held queue slot, for a device we already know is gone.
+         *
+         * A device that left with rejoin=true is deliberately kept, so this only
+         * rejects real departures.
+         */
+        const device = this.getDevice();
+        if (!device || device.removed) {
+            throw new Error(
+                `Device '${this.deviceIeeeAddress}' has left the network, not sending request`
+            );
+        }
+
         if (sendWhenActive) {
             return new Promise((resolve, reject): void =>  {
                 this.pendingRequests.push({func, resolve, reject});

@@ -11,6 +11,19 @@ enum Events {
     deviceNetworkAddressChanged = "deviceNetworkAddressChanged",
     deviceLeave = "deviceLeave",
     permitJoinChanged = "permitJoinChanged",
+    /**
+     * The adapter is up but unusable. Carries the dbInstKey so a host managing
+     * several coordinators knows which one failed.
+     */
+    adapterFailure = "adapterFailure",
+}
+
+interface AdapterFailurePayload {
+    reason: 'ping-failed' | 'timeout' | 'invalid-param';
+    detail: string;
+    failures: number;
+    /** Identifies which coordinator asked - '' or 'main' for the main gateway. */
+    dbInstKey: string;
 }
 
 interface DeviceJoinedPayload {
@@ -176,5 +189,5 @@ interface MessagePayload {
 export {
     Events, MessagePayload, MessagePayloadType, CommandsLookup, DeviceInterviewPayload, DeviceAnnouncePayload,
     DeviceLeavePayload, DeviceJoinedPayload, PermitJoinChangedPayload, DeviceNetworkAddressChangedPayload,
-    DeviceRejoinedPayload
+    DeviceRejoinedPayload, AdapterFailurePayload
 };
