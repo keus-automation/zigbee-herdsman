@@ -1354,13 +1354,18 @@ class ZStackAdapter extends Adapter {
             } else {
                 /* istanbul ignore else */
                 if (object.command === 'leaveInd') {
-                    const payload: Events.DeviceLeavePayload = {
-                        networkAddress: object.payload.srcaddr,
-                        ieeeAddr: object.payload.extaddr,
-                        rejoin: object.payload.rejoin
-                    };
 
-                    this.emit(Events.Events.deviceLeave, payload);
+                    if (object.payload.rejoin) {
+                        debug(`Device leave: ${object.payload.srcaddr}: Got leave indication with rejoin=true, nothing to do`);
+                    } else {
+                        const payload: Events.DeviceLeavePayload = {
+                            networkAddress: object.payload.srcaddr,
+                            ieeeAddr: object.payload.extaddr,
+                            rejoin: object.payload.rejoin
+                        };
+
+                        this.emit(Events.Events.deviceLeave, payload);
+                    }
                 }
             }
         } else {
