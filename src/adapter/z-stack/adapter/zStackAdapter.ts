@@ -90,8 +90,6 @@ class ZStackAdapter extends Adapter {
     private supportsKzMesh_: boolean;
     private interpanLock: boolean;
     private interpanEndpointRegistered: boolean;
-    /** repeated-failure memory, so a powered-off device stops costing a full ladder */
-    private deviceFailures: SendPolicy.DeviceFailureTracker;
     private waitress: Waitress<Events.ZclDataPayload, WaitressMatcher>;
 
     public constructor(networkOptions: NetworkOptions,
@@ -111,7 +109,6 @@ class ZStackAdapter extends Adapter {
         this.failureReported_ = false;
         this.adapterFailures_ = 0;
         this.supportsKzMesh_ = false;
-        this.deviceFailures = new SendPolicy.DeviceFailureTracker();
         this.waitress = new Waitress<Events.ZclDataPayload, WaitressMatcher>(
             this.waitressValidator, this.waitressTimeoutFormatter
         );
@@ -494,24 +491,6 @@ class ZStackAdapter extends Adapter {
 
         const policy = this.sendPolicyFor(timeout, disableRecovery);
         const deadlineAt = Date.now() + policy.deadlineMs;
-        const trackerKey = ieeeAddr;
-
-        /**
-         * A device that has failed the full ladder repeatedly is almost certainly
-         * powered off. Fail it fast rather than spending the whole budget and a
-         * queue slot on it every time.
-         */
-        if (!disableRecovery && this.deviceFailures.isSuspect(trackerKey)) {
-            const remaining = this.deviceFailures.suspectFor(trackerKey);
-            debug(
-                'send %s: device is in failure cooldown for another %dms, failing fast',
-                ieeeAddr, remaining
-            );
-            throw new Error(
-                `Device '${ieeeAddr}' is not responding (repeated send failures); ` +
-                `retrying in ${Math.ceil(remaining / 1000)}s`
-            );
-        }
 
         const state: SendPolicy.SendAttemptState = {
             attempt: 0, routeActionTaken: false, addressChecked: false, msRemaining: policy.deadlineMs,
@@ -583,14 +562,11 @@ class ZStackAdapter extends Adapter {
                 this.adapterFailures_ = 0;
 
                 if (response === null) {
-                    this.deviceFailures.recordSuccess(trackerKey);
                     return;
                 }
 
                 try {
-                    const result = await response.start().promise;
-                    this.deviceFailures.recordSuccess(trackerKey);
-                    return result;
+                    return await response.start().promise;
                 } catch (error) {
                     // Confirmed on the network but the device never answered.
                     lastFailure = SendPolicy.SendFailure.RESPONSE_TIMEOUT;
@@ -609,7 +585,7 @@ class ZStackAdapter extends Adapter {
             }
 
             if (disableRecovery) {
-                this.throwSendFailure(ieeeAddr, trackerKey, lastFailure, lastConfirmStatus, lastResponseError);
+                this.throwSendFailure(ieeeAddr, lastFailure, lastConfirmStatus, lastResponseError);
             }
 
             state.msRemaining = deadlineAt - Date.now();
@@ -617,7 +593,7 @@ class ZStackAdapter extends Adapter {
             debug('send %s: %s (%s)', ieeeAddr, decision.action, decision.reason);
 
             if (decision.action === 'give-up') {
-                this.throwSendFailure(ieeeAddr, trackerKey, lastFailure, lastConfirmStatus, lastResponseError);
+                this.throwSendFailure(ieeeAddr, lastFailure, lastConfirmStatus, lastResponseError);
             }
 
             if (decision.action === 'discover-route') {
@@ -707,23 +683,12 @@ class ZStackAdapter extends Adapter {
         });
     }
 
-    /** Records the failure against the device and throws the appropriate error. */
+    /** Throws the error that best describes why the send was abandoned. */
     private throwSendFailure(
-        ieeeAddr: string, trackerKey: string,
+        ieeeAddr: string,
         failure: SendPolicy.SendFailure, confirmStatus: number, responseError?: Error
     ): never {
-        /**
-         * An ADAPTER failure says nothing about the device - the frame never left
-         * the coordinator. Counting it against the device would put every device
-         * in the network into failure cooldown the moment the chip stops
-         * answering, and leave them there for a minute after it recovers.
-         */
-        if (failure === SendPolicy.SendFailure.ADAPTER) {
-            debug('send %s: giving up, coordinator did not accept the request', ieeeAddr);
-        } else {
-            const consecutive = this.deviceFailures.recordFailure(trackerKey);
-            debug('send %s: giving up after %i consecutive failures', ieeeAddr, consecutive);
-        }
+        debug('send %s: giving up (%s)', ieeeAddr, failure);
 
         if (confirmStatus !== null) {
             throw new DataConfirmError(confirmStatus);

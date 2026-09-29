@@ -176,44 +176,6 @@ describe('send policy', () => {
             expect(d.action).toBe('give-up');
         });
     });
-
-    describe('failure tracker', () => {
-        it('marks a device suspect only after repeated failures', () => {
-            const t = new SendPolicy.DeviceFailureTracker(3, 60000);
-
-            t.recordFailure('0x1');
-            t.recordFailure('0x1');
-            expect(t.isSuspect('0x1')).toBe(false);
-
-            t.recordFailure('0x1');
-            expect(t.isSuspect('0x1')).toBe(true);
-            expect(t.suspectFor('0x1')).toBeGreaterThan(0);
-        });
-
-        it('forgets a device as soon as it answers', () => {
-            const t = new SendPolicy.DeviceFailureTracker(2, 60000);
-            t.recordFailure('0x1');
-            t.recordFailure('0x1');
-            expect(t.isSuspect('0x1')).toBe(true);
-
-            t.recordSuccess('0x1');
-            expect(t.isSuspect('0x1')).toBe(false);
-        });
-
-        it('lets the cooldown expire', () => {
-            const t = new SendPolicy.DeviceFailureTracker(1, 1000);
-            t.recordFailure('0x1');
-            expect(t.isSuspect('0x1', Date.now())).toBe(true);
-            expect(t.isSuspect('0x1', Date.now() + 2000)).toBe(false);
-        });
-
-        it('tracks devices independently', () => {
-            const t = new SendPolicy.DeviceFailureTracker(1, 60000);
-            t.recordFailure('0x1');
-            expect(t.isSuspect('0x1')).toBe(true);
-            expect(t.isSuspect('0x2')).toBe(false);
-        });
-    });
 });
 
 /**
