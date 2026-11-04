@@ -342,7 +342,8 @@ export class ZnpAdapterManager {
         let nib: ReturnType<typeof Structs.nib> = null;
         do {
             await Wait(3000);
-            nib = await this.nv.readItem(NvItemsIds.NIB, 0, Structs.nib);
+            // A timed-out read counts as one more unsettled poll, not a failed commissioning.
+            nib = await this.nv.readItem(NvItemsIds.NIB, 0, Structs.nib).catch((): null => null);
             reads++;
         } while ((!nib || nib.nwkPanId === 65535 || nib.nwkLogicalChannel === 0) && reads < 10);
         if (!nib || nib.nwkPanId === 65535 || nib.nwkLogicalChannel === 0) {

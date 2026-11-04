@@ -2,6 +2,7 @@ import "regenerator-runtime/runtime";
 import {Znp, ZpiObject} from '../../../src/adapter/z-stack/znp';
 import SerialPort from 'serialport';
 import net from 'net';
+import {EventEmitter} from 'events';
 import {Frame as UnpiFrame, Constants as UnpiConstants} from '../../../src/adapter/z-stack/unpi';
 import {duplicateArray, ieeeaAddr1, ieeeaAddr2} from '../../testUtils';
 import BuffaloZnp from '../../../src/adapter/z-stack/znp/buffaloZnp';
@@ -92,6 +93,7 @@ jest.mock('../../../src/adapter/z-stack/unpi/parser', () => {
 
 const mockUnpiWriterWriteFrame = jest.fn();
 const mockUnpiWriterWriteBuffer = jest.fn();
+const mockUnpiWriterRemoveAllListeners = jest.fn();
 
 jest.mock('../../../src/adapter/z-stack/unpi/writer', () => {
     return jest.fn().mockImplementation(() => {
@@ -99,6 +101,8 @@ jest.mock('../../../src/adapter/z-stack/unpi/writer', () => {
             writeFrame: mockUnpiWriterWriteFrame,
             writeBuffer: mockUnpiWriterWriteBuffer,
             pipe: jest.fn(),
+            on: jest.fn(),
+            removeAllListeners: mockUnpiWriterRemoveAllListeners,
         };
     });
 });
@@ -1043,5 +1047,41 @@ describe('ZNP', () => {
         const value2 = buffalo2.read('LIST_ASSOC_DEV', {length: 40, startIndex: 35});
         expect(buffalo2.getPosition()).toStrictEqual(10);
         expect(value2).toStrictEqual(duplicateArray(5, [4112]));
+    });
+    it('Custom transport close detaches from the shared emitter', async () => {
+        const emitter = new EventEmitter();
+        emitter.on('init', () => emitter.emit('ready'));
+        const closed = jest.fn();
+        emitter.on('closed', closed);
+        const custom = new Znp('custom', 115200, false, null, {eventEmitter: emitter});
+        await custom.open();
+        expect(custom.isInitialized()).toBeTruthy();
+        expect(emitter.listenerCount('incoming')).toBe(1);
+
+        await custom.close();
+
+        expect(custom.isInitialized()).toBeFalsy();
+        expect(emitter.listenerCount('ready')).toBe(0);
+        expect(emitter.listenerCount('incoming')).toBe(0);
+        expect(mockUnpiWriterRemoveAllListeners).toHaveBeenCalledWith('data');
+        expect(closed).toHaveBeenCalledTimes(1);
+    });
+
+    it('Custom transport closed before ready also detaches', async () => {
+        // No 'ready' answer: open stays pending, like a close during the bootloader wait.
+        const emitter = new EventEmitter();
+        const custom = new Znp('custom', 115200, false, null, {eventEmitter: emitter});
+        custom.open();
+        expect(emitter.listenerCount('ready')).toBe(1);
+
+        await custom.close();
+
+        expect(emitter.listenerCount('ready')).toBe(0);
+        expect(emitter.listenerCount('incoming')).toBe(0);
+    });
+
+    it('Custom transport close before open does not throw', async () => {
+        const custom = new Znp('custom', 115200, false, null, {eventEmitter: new EventEmitter()});
+        await expect(custom.close()).resolves.toBeUndefined();
     });
 });

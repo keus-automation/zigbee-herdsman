@@ -283,6 +283,24 @@ class Znp extends events.EventEmitter {
         });
     }
 
+    /**
+     * The custom transport's emitter outlives this Znp, so a closed Znp must drop every tie to it:
+     * otherwise a stopped start keeps writing to the chip and receiving its replies.
+     */
+    private detachCustomTransport(): void {
+        const eventEmitter = this.customTransportOptions.eventEmitter;
+        if (this.customTransportEventListeners.ready) {
+            eventEmitter.removeListener('ready', this.customTransportEventListeners.ready);
+        }
+        if (this.customTransportEventListeners.incoming) {
+            eventEmitter.removeListener('incoming', this.customTransportEventListeners.incoming);
+        }
+        if (this.unpiWriter) {
+            this.unpiWriter.removeAllListeners('data');
+        }
+        this.initialized = false;
+    }
+
     private customTransportIncomingDataListener(data: Buffer) {
         this.unpiParser.write(data);
     }
@@ -367,12 +385,15 @@ class Znp extends events.EventEmitter {
                     this.socketPort.destroy();
                     resolve();
                 } else {
-                    this.customTransportOptions.eventEmitter.removeListener('ready', this.customTransportEventListeners.ready);
-                    this.customTransportOptions.eventEmitter.removeListener('incoming', this.customTransportEventListeners.incoming);
+                    this.detachCustomTransport();
                     this.customTransportOptions.eventEmitter.emit('closed');
                     resolve();
                 }
             } else {
+                // Closed during open's bootloader wait: detach too, or that open finishes and runs alongside the next one.
+                if (this.portType === 'customtransport') {
+                    this.detachCustomTransport();
+                }
                 resolve();
                 this.emit('close');
             }
