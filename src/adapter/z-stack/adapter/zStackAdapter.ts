@@ -1,7 +1,7 @@
 import {
     NetworkOptions, SerialPortOptions, Coordinator, CoordinatorVersion, NodeDescriptor,
     DeviceType, ActiveEndpoints, SimpleDescriptor, LQI, RoutingTable, NetworkParameters,
-    StartResult, LQINeighbor, RoutingTableEntry, AdapterOptions,
+    StartResult, LQINeighbor, RoutingTableEntry, AdapterOptions, CoordinatorState,
 } from '../../tstype';
 // kz-mesh hook: all Keus mesh diagnostics live in ../kz-mesh
 import * as KzMesh from '../kz-mesh';
@@ -20,6 +20,7 @@ import {LoggerStub} from "../../../controller/logger-stub";
 import {ZnpAdapterManager} from "./manager";
 import * as Models from "../../../models";
 import { DevStates } from '../constants/common';
+import {Endpoints} from "./endpoints";
 
 const debug = Debug("zigbee-herdsman:adapter:zStack:adapter");
 const Subsystem = UnpiConstants.Subsystem;
@@ -142,6 +143,26 @@ class ZStackAdapter extends Adapter {
         } catch (e) {
             return false;
         }
+    }
+
+    // Read-only and outside pingZNPHost/the adapter queue, so a failed probe never counts as an adapter failure.
+    public async readCoordinatorState(): Promise<CoordinatorState> {
+        await this.znp.request(Subsystem.SYS, 'ping', {capabilities: 1});
+        const deviceInfo = await this.znp.request(Subsystem.UTIL, 'getDeviceInfo', {});
+        const nwkInfo = await this.znp.request(Subsystem.ZDO, 'extNwkInfo', {});
+        const waiter = this.znp.waitFor(UnpiConstants.Type.AREQ, Subsystem.ZDO, 'activeEpRsp', {nwkaddr: 0}, 6000);
+        await this.znp.request(Subsystem.ZDO, 'activeEpReq', {dstaddr: 0, nwkaddrofinterest: 0}, waiter.ID);
+        const activeEndpoints: number[] = (await waiter.start().promise).payload.activeeplist;
+        return {
+            ieeeAddr: deviceInfo.payload.ieeeaddr,
+            deviceState: deviceInfo.payload.devicestate,
+            panId: nwkInfo.payload.panid,
+            // Same IEEEADDR decoding as ieeeAddr, so an unconfigured extended PAN id compares equal to it.
+            extendedPanId: nwkInfo.payload.extendedpanid,
+            channel: nwkInfo.payload.channel,
+            activeEndpoints,
+            missingEndpoints: Endpoints.map((e) => e.endpoint).filter((e) => !activeEndpoints.includes(e)),
+        };
     }
 
     /**

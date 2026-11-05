@@ -376,6 +376,10 @@ class Controller extends events.EventEmitter {
         return this.adapter.pingZNPHost();
     }
 
+    public async readCoordinatorState(): Promise<AdapterTsType.CoordinatorState> {
+        return this.adapter.readCoordinatorState();
+    }
+
     public async reset(type: 'soft' | 'hard'): Promise<void> {
         await this.adapter.reset(type);
     }
