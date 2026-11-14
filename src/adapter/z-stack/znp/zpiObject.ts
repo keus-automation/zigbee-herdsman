@@ -11,6 +11,9 @@ const BufferAndListTypes = [
     ParameterType.BUFFER100, ParameterType.LIST_UINT16, ParameterType.LIST_ROUTING_TABLE,
     ParameterType.LIST_BIND_TABLE, ParameterType.LIST_NEIGHBOR_LQI, ParameterType.LIST_NETWORK,
     ParameterType.LIST_ASSOC_DEV, ParameterType.LIST_UINT8,
+    // kz-mesh hook: these read their element count from the preceding parameter,
+    // same convention as the stock list types.
+    ParameterType.LIST_KZ_NEIGHBOR, ParameterType.LIST_KZ_RTG, ParameterType.LIST_KZ_SRC_RTG,
 ];
 
 class ZpiObject {

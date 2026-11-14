@@ -1,6 +1,6 @@
 import {
     Events, MessagePayload, MessagePayloadType, DeviceInterviewPayload, DeviceAnnouncePayload,
-    DeviceLeavePayload, DeviceJoinedPayload, DeviceRejoinedPayload
+    DeviceLeavePayload, DeviceJoinedPayload, DeviceRejoinedPayload, AdapterFailurePayload
 } from './controller/events';
 import Controller from './controller/controller';
 import * as Zcl from './zcl';
@@ -12,7 +12,7 @@ import { ZHGlobalLogs } from './globalLogs';
 
 export {
     Events, MessagePayload, MessagePayloadType, DeviceInterviewPayload, DeviceAnnouncePayload,
-    DeviceLeavePayload, DeviceJoinedPayload, DeviceRejoinedPayload
+    DeviceLeavePayload, DeviceJoinedPayload, DeviceRejoinedPayload, AdapterFailurePayload
 };
 export { Device };
 export { Group };

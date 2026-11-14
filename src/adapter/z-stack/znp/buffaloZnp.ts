@@ -1,15 +1,21 @@
 
 import {Buffalo, TsType} from '../../../buffalo';
 import {BuffaloZnpOptions} from './tstype';
+// kz-mesh hook: neighbour / route / source-route decoders live in ../kz-mesh
+import {readKzListType, KZ_EXTRA_ROUTE_STATUS} from '../kz-mesh/buffalo';
 
 
-type RoutingTableEntryStatus = 'ACTIVE' | 'DISCOVERY_UNDERWAY' | 'DISCOVERY_FAILED' | 'INACTIVE';
+type RoutingTableEntryStatus = 'ACTIVE' | 'DISCOVERY_UNDERWAY' | 'DISCOVERY_FAILED' | 'INACTIVE' |
+    'REPAIR' | 'LINK_FAIL';
 
 const routingTableStatusLookup: Record<number, RoutingTableEntryStatus> = {
     0: 'ACTIVE',
     1: 'DISCOVERY_UNDERWAY',
     2: 'DISCOVERY_FAILED',
     3: 'INACTIVE',
+    // kz-mesh hook: REPAIR(4) / LINK_FAIL(5) are reachable on Keus firmware and
+    // can surface in stock ZDO routing reads too, so the lookup needs them.
+    ...(KZ_EXTRA_ROUTE_STATUS as Record<number, RoutingTableEntryStatus>),
 };
 
 interface RoutingEntry {
@@ -147,6 +153,12 @@ class BuffaloZnp extends Buffalo {
     }
 
     public read(type: string, options: BuffaloZnpOptions): TsType.Value {
+        // kz-mesh hook: returns undefined for anything it does not own.
+        const kzValue = readKzListType(type, this, options.length);
+        if (kzValue !== undefined) {
+            return kzValue as unknown as TsType.Value;
+        }
+
         if (type === 'LIST_ROUTING_TABLE') {
             return this.readListRoutingTable(options);
         } else if (type === 'LIST_BIND_TABLE') {

@@ -90,14 +90,16 @@ export class ZnpAdapterManager {
         }
         }
 
-        let bcast = await this.nv.readItem(NvItemsIds.BCAST_RETRIES);
-        let pat = await this.nv.readItem(NvItemsIds.PASSIVE_ACK_TIMEOUT);
-        let bdt = await this.nv.readItem(NvItemsIds.BCAST_DELIVERY_TIME);
-        let ce = await this.nv.readItem(NvItemsIds.NWK_CHILD_AGE_ENABLE);
-        this.debug.startup(`<<-- broadcast retries: ${Array.from(bcast)} -->>`);
-        this.debug.startup(`<<-- passive ack timeout: ${Array.from(pat)} -->>`);
-        this.debug.startup(`<<-- broadcast delivery time: ${Array.from(bdt)} -->>`);
-        this.debug.startup(`<<-- network child age enable: ${Array.from(ce)} -->>`);
+        /**
+         * Purely informational. nv.readItem() returns null for an item that is not
+         * present, and Array.from(null) throws - so an absent NV item here used to
+         * abort start() and leave the adapter down. A debug line must never be able
+         * to do that.
+         */
+        await this.logNwkSetting('broadcast retries', NvItemsIds.BCAST_RETRIES);
+        await this.logNwkSetting('passive ack timeout', NvItemsIds.PASSIVE_ACK_TIMEOUT);
+        await this.logNwkSetting('broadcast delivery time', NvItemsIds.BCAST_DELIVERY_TIME);
+        await this.logNwkSetting('network child age enable', NvItemsIds.NWK_CHILD_AGE_ENABLE);
 
         /* register endpoints */
         await this.registerEndpoints();
@@ -409,6 +411,18 @@ export class ZnpAdapterManager {
     }
 
     /**
+     * Logs one network NV setting, tolerating an absent item or a read failure.
+     */
+    private async logNwkSetting(label: string, id: NvItemsIds): Promise<void> {
+        try {
+            const value = await this.nv.readItem(id);
+            this.debug.startup(`<<-- ${label}: ${value ? Array.from(value) : 'not set'} -->>`);
+        } catch (error) {
+            this.debug.startup(`<<-- ${label}: unreadable (${error}) -->>`);
+        }
+    }
+
+    /**
      * Registers endpoints before beginning normal operation.
      */
     private async registerEndpoints(): Promise<void> {
@@ -532,125 +546,6 @@ export class ZnpAdapterManager {
         await this.nv.writeItem(this.options.version === ZnpVersion.zStack12 ? NvItemsIds.ZNP_HAS_CONFIGURED_ZSTACK1 : NvItemsIds.ZNP_HAS_CONFIGURED_ZSTACK3, Buffer.from([0x55]));
     }
 
-    public async addOfflineDevice(ieeeAddr: string, nwkAddr: number, linkKey: Buffer): Promise<{success: boolean, message?: string, error?: string}> {
-
-/* security manager add direct approach*/
-        try {
-            
-            let response = await this.znp.request(
-                Subsystem.ZDO,
-                'secAddLinkKey',
-                {
-                    shortaddr: nwkAddr,
-                    extaddr: ieeeAddr,
-                    linkkey: linkKey
-                }
-            );
-    
-            if(response.payload.status == ZnpCommandStatus.SUCCESS) 
-            {
-                console.log(`Successfully added offline device with IEEE address ${ieeeAddr} and NWK address ${nwkAddr}`);
-    
-                return { 
-                    success: true, 
-                    message: `Successfully added offline device with IEEE address ${ieeeAddr} and NWK address ${nwkAddr}`
-                };
-            }
-            else 
-            {
-                console.error(`Failed to add offline device with IEEE address ${ieeeAddr} and NWK address ${nwkAddr} - status: ${ZnpCommandStatus[response.payload.status]}`);
-    
-                return { 
-                    success: false,
-                    error: `Failed to add offline device with IEEE address ${ieeeAddr} and NWK address ${nwkAddr} - status: ${ZnpCommandStatus[response.payload.status]}`,
-                };
-            }
-        }
-        catch(error)
-        {
-            return {
-                success: false,
-                error: `Failed to add offline device with IEEE address ${ieeeAddr} and NWK address ${nwkAddr} - exception occurred: ${error.message}`
-            }
-        }
-
-/* security manager add direct approach end*/
-
-/*test add approach */
-        // const testEntryIndex = 249
-
-        // const ame = Structs.addressManagerEntry(Buffer.alloc(11, 0));
-        // ame.nwkAddr = nwkAddr;
-        // ame.extAddr = Buffer.from(ieeeAddr, 'hex');
-        // ame.user = Structs.AddressManagerUser.Assoc;
-
-        // ame.user |= Structs.AddressManagerUser.Security;
-
-        // const apsKeyDataEntry = Structs.apsLinkKeyDataEntry(Buffer.alloc(24, 0));
-        // apsKeyDataEntry.key = Buffer.from(linkKey);
-        // apsKeyDataEntry.rxFrmCntr = 0;
-        // apsKeyDataEntry.txFrmCntr = 0;
-
-        // const sme = Structs.securityManagerEntry(Buffer.alloc(5, 0));
-        // sme.ami = testEntryIndex;
-        // sme.keyNvId = testEntryIndex;
-        // sme.authenticationOption = Structs.SecurityManagerAuthenticationOption.AuthenticatedCBCK;
-
-        // /* write address manager table entry */
-        // await this.nv.writeExtendedTableEntry(NvSystemIds.ZSTACK, NvItemsIds.ZCD_NV_EX_ADDRMGR, testEntryIndex, ame.serialize(this.nv.memoryAlignment));
-
-        // /* write security manager table entry */
-        // await this.nv.writeExtendedTableEntry(NvSystemIds.ZSTACK, NvItemsIds.APS_LINK_KEY_TABLE, testEntryIndex, sme.serialize(this.nv.memoryAlignment));
-        
-        // /* write aps link key data table entry*/
-        // await this.nv.writeExtendedTableEntry(NvSystemIds.ZSTACK, NvItemsIds.ZCD_NV_EX_APS_KEY_DATA_TABLE, testEntryIndex, apsKeyDataEntry.serialize(this.nv.memoryAlignment));
-
-/* test add approach end */        
-
-/* table update approach */
-        // const currentAddressManagerTable = await this.nv.readTable("extended", NvSystemIds.ZSTACK, NvItemsIds.ZCD_NV_EX_ADDRMGR, undefined, Structs.addressManagerTable);
-        // const currentSecurityManagerTable = await this.nv.readItem(NvItemsIds.APS_LINK_KEY_TABLE, 0, Structs.securityManagerTable);
-        // const currentApsLinkKeyDataTable = await this.nv.readTable("extended", NvSystemIds.ZSTACK, NvItemsIds.ZCD_NV_EX_APS_KEY_DATA_TABLE, undefined, Structs.apsLinkKeyDataTable);
-        
-        // const addressManagerTable = Structs.addressManagerTable(currentAddressManagerTable.capacity);
-        // const securityManagerTable = Structs.securityManagerTable(currentSecurityManagerTable.capacity);
-        // const apsLinkKeyDataTable = Structs.apsLinkKeyDataTable(currentApsLinkKeyDataTable.capacity);
-
-        // const ame = addressManagerTable.getNextFree();
-        // ame.nwkAddr = nwkAddr;
-        // ame.extAddr = Buffer.from(ieeeAddr, 'hex');
-        // ame.user = Structs.AddressManagerUser.Assoc;
-
-        // ame.user |= Structs.AddressManagerUser.Security;
-
-        // const apsKeyDataEntry = apsLinkKeyDataTable.getNextFree();
-        // if (!apsKeyDataEntry) {
-        //     throw new Error(`target adapter aps link key data table size insufficient (size=${apsLinkKeyDataTable.capacity})`);
-        // }
-        // apsKeyDataEntry.key = Buffer.from(linkKey);
-        // apsKeyDataEntry.rxFrmCntr = 0;
-        // apsKeyDataEntry.txFrmCntr = 0;
-
-        // const sme = securityManagerTable.getNextFree();
-        // if (!sme) {
-        //     throw new Error(`target adapter security manager table size insufficient (size=${securityManagerTable.capacity})`);
-        // }
-        // sme.ami = addressManagerTable.indexOf(ame);
-        // sme.keyNvId = apsLinkKeyDataTable.indexOf(apsKeyDataEntry);
-        // sme.authenticationOption = Structs.SecurityManagerAuthenticationOption.AuthenticatedCBCK;
-
-        // console.log(`\n--------------------------\nSuccessfully added offline device \n-----------------------\n`);
-        
-        // /* write address manager table */
-        // await this.nv.writeTable("extended", NvSystemIds.ZSTACK, NvItemsIds.ZCD_NV_EX_ADDRMGR, addressManagerTable);
-
-        // /* write security manager table */
-        // await this.nv.writeItem(NvItemsIds.APS_LINK_KEY_TABLE, securityManagerTable);
-        
-        // /* write aps link key data table */
-        // await this.nv.writeTable("extended", NvSystemIds.ZSTACK, NvItemsIds.ZCD_NV_EX_APS_KEY_DATA_TABLE, apsLinkKeyDataTable);
-/* table update approach end */
-    }
 
     public async manualRestore(): Promise<void> {
 
