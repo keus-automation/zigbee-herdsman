@@ -202,7 +202,8 @@ class Controller extends events.EventEmitter {
         }
 
         // Set backup timer to 1 day.
-        this.backupTimer = setInterval(() => this.backup(), 21600000);
+        // Unhandled, a failed backup would crash the process; a failed one writes nothing.
+        this.backupTimer = setInterval(() => this.backup().catch((e) => debug.error(`Backup failed: ${e}`)), 21600000);
         // this.backupTimer = setInterval(() => this.backup(), 60000);
 
         // Set database save timer to 1 hour.
@@ -324,7 +325,8 @@ class Controller extends events.EventEmitter {
 
         clearInterval(this.backupTimer);
         clearInterval(this.databaseSaveTimer);
-        await this.backup();
+        // The adapter must still stop when the backup fails.
+        await this.backup().catch((e) => debug.error(`Backup on stop failed: ${e}`));
         await this.adapter.stop();
     }
 
@@ -372,6 +374,10 @@ class Controller extends events.EventEmitter {
 
     public async checkHostHealth(): Promise<boolean> {
         return this.adapter.pingZNPHost();
+    }
+
+    public async readCoordinatorState(): Promise<AdapterTsType.CoordinatorState> {
+        return this.adapter.readCoordinatorState();
     }
 
     public async reset(type: 'soft' | 'hard'): Promise<void> {

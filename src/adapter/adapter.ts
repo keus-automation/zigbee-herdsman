@@ -36,6 +36,10 @@ abstract class Adapter extends events.EventEmitter {
         return true;
     }
 
+    public async readCoordinatorState?(): Promise<TsType.CoordinatorState> {
+        throw new Error('readCoordinatorState is not supported by this adapter');
+    }
+
     public getNwkOptions(): TsType.NetworkOptions {
         return {...this.networkOptions};
     }

@@ -117,9 +117,20 @@ interface NetworkParameters {
     extendedPanIDArray?: number[];
 }
 
+interface CoordinatorState {
+    ieeeAddr: string;
+    deviceState: number;
+    panId: number;
+    extendedPanId: string;
+    channel: number;
+    activeEndpoints: number[];
+    missingEndpoints: number[];
+}
+
 export {
     SerialPortOptions, NetworkOptions, Coordinator, CoordinatorVersion, NodeDescriptor,
     DeviceType, ActiveEndpoints, SimpleDescriptor, LQI, LQINeighbor, RoutingTable, Backup, NetworkParameters,
+    CoordinatorState,
     StartResult, RoutingTableEntry, AdapterOptions, SocketOptions, CustomTransportOptions
 };
 

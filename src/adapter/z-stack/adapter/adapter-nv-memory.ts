@@ -333,21 +333,16 @@ export class AdapterNvMemory {
      * @param retries Maximum number of retries.
      */
     private async retry<R>(fn: (() => Promise<R>), retries = 3): Promise<R> {
-        let i = 0;
-        while (i < retries) {
+        let lastError: Error;
+        for (let i = 0; i < retries; i++) {
             try {
-                const result = await fn();
-                return result;
+                return await fn();
             } catch (error) {
-                /* istanbul ignore next */
-                if (i >= retries) {
-                    /* istanbul ignore next */
-                    throw error;
-                }
+                lastError = error;
             }
-            /* istanbul ignore next */
-            i++;
         }
+        // Must throw: returning undefined reads as "item absent" and sends startup down the NV wipe path.
+        throw lastError;
     }
 
     /**
