@@ -127,8 +127,8 @@ class Group extends Entity {
         delete Group.groups[this.groupID];
     }
 
-    public save(): void {
-        Entity.databases[this._dbInstKey].update(this.toDatabaseRecord());
+    public save(writeDatabase = true): void {
+        Entity.databases[this._dbInstKey].update(this.toDatabaseRecord(), true, writeDatabase);
     }
 
     public addMember(endpoint: Endpoint): void {

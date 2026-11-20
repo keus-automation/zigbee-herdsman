@@ -347,15 +347,19 @@ class Controller extends events.EventEmitter {
         await this.adapter.stop();
     }
 
+    // Every save() would rewrite the whole file (N devices = N rewrites, all synchronous): on a
+    // large network that froze the event loop for seconds every hour. Update memory, write once.
     private databaseSave(): void {
         console.log('Saving all databases ', this.dbInstKey);
         for (const device of Device.all(this.dbInstKey)) {
-            device.save();
+            device.save(false);
         }
 
         for (const group of Group.all(this.dbInstKey)) {
-            group.save();
+            group.save(false);
         }
+
+        this.database.write();
     }
 
     private async backup(): Promise<void> {
