@@ -295,7 +295,7 @@ class Device extends Entity {
         };
     }
 
-    public save(): void {
+    public save(writeDatabase = true): void {
         /**
          * Database.update() defaults to forceInsert, so saving a device whose row
          * has already been deleted would RE-CREATE it. That is how a device that
@@ -309,7 +309,7 @@ class Device extends Entity {
             return;
         }
 
-        Entity.databases[this._dbInstKey].update(this.toDatabaseEntry());
+        Entity.databases[this._dbInstKey].update(this.toDatabaseEntry(), true, writeDatabase);
     }
 
     private static loadFromDatabaseIfNecessary(dbInstKey: string): void {
