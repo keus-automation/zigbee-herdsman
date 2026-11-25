@@ -1234,6 +1234,48 @@ describe("zstack-adapter", () => {
         expect(result).toBe("resumed");
     });
 
+    it("should enable child aging and restart the adapter when it is disabled", async () => {
+        mockZnpRequestWith(commissioned3AlignedRequestMock.clone().nv(NvItemsIds.NWK_CHILD_AGE_ENABLE, Buffer.from([0x00])));
+        const result = await adapter.start();
+        expect(result).toBe("resumed");
+
+        const sequence = mockZnpRequest.mock.calls
+            .filter(([, command, payload]) => ["resetReq", "startupFromApp", "register"].includes(command) ||
+                (command === "osalNvWriteExt" && payload.id === NvItemsIds.NWK_CHILD_AGE_ENABLE))
+            .map(([, command]) => command);
+        expect(sequence.slice(0, 5)).toEqual(["startupFromApp", "osalNvWriteExt", "resetReq", "startupFromApp", "register"]);
+        expect(mockZnpRequest).toBeCalledWith(Subsystem.SYS, "osalNvWriteExt", {id: NvItemsIds.NWK_CHILD_AGE_ENABLE, offset: 0, len: 1, value: Buffer.from([0x01])});
+        expect(mockZnpRequest).toBeCalledWith(Subsystem.SYS, "resetReq", {type: Constants.SYS.resetType.SOFT});
+    });
+
+    it("should not touch child aging when it is already enabled", async () => {
+        mockZnpRequestWith(commissioned3AlignedRequestMock.clone().nv(NvItemsIds.NWK_CHILD_AGE_ENABLE, Buffer.from([0x01])));
+        const result = await adapter.start();
+        expect(result).toBe("resumed");
+        expect(mockZnpRequest).not.toBeCalledWith(Subsystem.SYS, "osalNvWriteExt", expect.objectContaining({id: NvItemsIds.NWK_CHILD_AGE_ENABLE}));
+        expect(mockZnpRequest).not.toBeCalledWith(Subsystem.SYS, "resetReq", expect.anything());
+    });
+
+    it("should not create the child aging item when the firmware does not have it", async () => {
+        mockZnpRequestWith(commissioned3AlignedRequestMock);
+        const result = await adapter.start();
+        expect(result).toBe("resumed");
+        expect(mockZnpRequest).not.toBeCalledWith(Subsystem.SYS, "osalNvItemInit", expect.objectContaining({id: NvItemsIds.NWK_CHILD_AGE_ENABLE}));
+        expect(mockZnpRequest).not.toBeCalledWith(Subsystem.SYS, "resetReq", expect.anything());
+    });
+
+    it("should finish startup without a reset when child aging cannot be written", async () => {
+        mockZnpRequestWith(
+            commissioned3AlignedRequestMock.clone()
+                .nv(NvItemsIds.NWK_CHILD_AGE_ENABLE, Buffer.from([0x00]))
+                .handle(Subsystem.SYS, "osalNvWriteExt", () => ({payload: {status: 1}}))
+        );
+        const result = await adapter.start();
+        expect(result).toBe("resumed");
+        expect(mockZnpRequest).not.toBeCalledWith(Subsystem.SYS, "resetReq", expect.anything());
+        expect(mockZnpRequest).toBeCalledWith(Subsystem.AF, "register", expect.anything(), null, null, expect.anything());
+    });
+
     it("should restore unified backup with 3.0.x adapter and create backup - empty", async () => {
         const backupFile = getTempFile();
         fs.writeFileSync(backupFile, JSON.stringify(backupMatchingConfig), "utf8");
