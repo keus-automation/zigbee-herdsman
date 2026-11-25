@@ -90,6 +90,9 @@ export class ZnpAdapterManager {
         }
         }
 
+        /* must run before endpoints are registered, as enabling it resets the adapter */
+        await this.ensureChildAgingEnabled();
+
         /**
          * Purely informational. nv.readItem() returns null for an item that is not
          * present, and Array.from(null) throws - so an absent NV item here used to
@@ -409,6 +412,51 @@ export class ZnpAdapterManager {
                 ])
             );
         }
+    }
+
+    /**
+     * Turns child aging on if the adapter has it off, so the coordinator drops end devices
+     * that stop polling it from its child table instead of keeping them forever.
+     *
+     * Z-Stack copies this NV item into RAM at boot, so a new value needs a reset to take
+     * effect. Commissioning restores the firmware defaults, so this must run after the
+     * startup strategy, not before it.
+     *
+     * A failed read or write is logged and startup carries on with the setting unchanged.
+     * Once the item is written, a failed reset or restart throws: the coordinator is then
+     * not known to be running.
+     */
+    private async ensureChildAgingEnabled(): Promise<void> {
+        let current: Buffer;
+        try {
+            current = await this.nv.readItem(NvItemsIds.NWK_CHILD_AGE_ENABLE);
+        } catch (error) {
+            this.logger?.warn(`Could not read the child aging setting, leaving it unchanged (${error})`);
+            return;
+        }
+
+        /* Z-Stack creates every NV item it uses at boot, so a missing item means this firmware has no such setting */
+        if (!current) {
+            this.logger?.warn(`Adapter firmware has no child aging setting (NV item ${NvItemsIds.NWK_CHILD_AGE_ENABLE}), cannot enable it`);
+            return;
+        }
+
+        if (current[0] === 0x01) {
+            this.debug.startup("child aging is enabled");
+            return;
+        }
+
+        this.logger?.info(`Child aging is disabled on the adapter (value=${current[0]}), enabling it and restarting the adapter`);
+        try {
+            await this.nv.writeItem(NvItemsIds.NWK_CHILD_AGE_ENABLE, Buffer.from([0x01]), 0, false);
+        } catch (error) {
+            this.logger?.warn(`Could not enable child aging, leaving it unchanged (${error})`);
+            return;
+        }
+
+        await this.resetAdapter();
+        await this.beginStartup();
+        this.debug.startup("child aging enabled");
     }
 
     /**
